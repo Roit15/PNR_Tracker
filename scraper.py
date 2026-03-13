@@ -25,6 +25,11 @@ INDIGO_URL = "https://www.goindigo.in/account/my-bookings.html"
 MAX_RETRIES = 3
 
 
+def _is_cloud():
+    """Detect if running in cloud/Docker (Render, Railway, etc.)."""
+    return os.getenv('RENDER') or os.getenv('DISPLAY') == ':99'
+
+
 def _create_stealth_driver():
     """Create a Chrome driver with stealth settings to bypass Akamai bot detection."""
     options = Options()
@@ -34,6 +39,14 @@ def _create_stealth_driver():
     options.add_argument('--no-default-browser-check')
     options.add_experimental_option('excludeSwitches', ['enable-automation'])
     options.add_experimental_option('useAutomationExtension', False)
+
+    # Cloud/Docker: Chrome needs these to run in container
+    if _is_cloud():
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--remote-debugging-port=9222')
+        logger.info("Cloud mode: added --no-sandbox, --disable-dev-shm-usage")
 
     driver = webdriver.Chrome(options=options)
 
