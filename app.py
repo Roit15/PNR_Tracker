@@ -147,9 +147,11 @@ init_db()
 if __name__ == '__main__':
     # Start the scheduler
     scheduler = setup_scheduler()
-    logger.info("PNR Tracker started! Dashboard at http://localhost:5000")
 
-    port = int(os.getenv('FLASK_PORT', 5000))
+    # Render sets PORT; fallback to FLASK_PORT or 8080
+    port = int(os.getenv('PORT', os.getenv('FLASK_PORT', 8080)))
+    logger.info(f"PNR Tracker started! Listening on port {port}")
+
     try:
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
     finally:
