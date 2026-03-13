@@ -1,6 +1,7 @@
 flask==3.1.0
 pdfplumber==0.11.6
 selenium
+webdriver-manager
 apscheduler==3.11.0
 python-dotenv==1.1.0
 pytz==2024.2

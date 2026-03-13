@@ -15,6 +15,7 @@ import logging
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -42,13 +43,23 @@ def _create_stealth_driver():
 
     # Cloud/Docker: Chrome needs these to run in container
     if _is_cloud():
+        options.add_argument('--headless=new')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
-        options.add_argument('--remote-debugging-port=9222')
-        logger.info("Cloud mode: added --no-sandbox, --disable-dev-shm-usage")
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-software-rasterizer')
+        options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
+        logger.info("Cloud mode: headless + no-sandbox + stealth user-agent")
 
-    driver = webdriver.Chrome(options=options)
+    # Use webdriver-manager to auto-install matching chromedriver
+    try:
+        from webdriver_manager.chrome import ChromeDriverManager
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+    except Exception:
+        # Fallback: system chromedriver
+        driver = webdriver.Chrome(options=options)
 
     # Remove webdriver flag from navigator
     driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
