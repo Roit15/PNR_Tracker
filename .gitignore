@@ -5,3 +5,5 @@ venv/
 uploads/
 *.db
 .DS_Store
+*.db
+screenshots/
