@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNR Tracker — Indigo Flight Status Monitor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <span class="logo-icon">✈️</span>
+                <div>
+                    <h1>PNR Tracker</h1>
+                    <p class="subtitle">IndiGo Flight Status Monitor</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <form action="/check-now" method="POST" class="inline-form">
+                    <button type="submit" class="btn btn-accent" id="check-now-btn">
+                        <span class="btn-icon">🔄</span> Check Now
+                    </button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">
+            <span>{{ message }}</span>
+            <button class="flash-close" onclick="this.parentElement.remove()">×</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <main class="container">
+        <!-- Upload Section -->
+        <section class="card upload-card" id="upload-section">
+            <h2 class="card-title">
+                <span class="card-icon">📄</span>
+                Upload Booking Confirmation
+            </h2>
+            <form action="/upload" method="POST" enctype="multipart/form-data" id="upload-form">
+                <div class="upload-zone" id="upload-zone">
+                    <input type="file" name="file" id="file-input" accept=".pdf" class="file-input">
+                    <div class="upload-content">
+                        <div class="upload-icon">📎</div>
+                        <p class="upload-text">Drop your IndiGo booking PDF here</p>
+                        <p class="upload-hint">or click to browse</p>
+                    </div>
+                    <div class="file-preview" id="file-preview" style="display: none;">
+                        <span class="file-icon">📄</span>
+                        <span class="file-name" id="file-name"></span>
+                        <button type="button" class="file-remove" id="file-remove">×</button>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full" id="upload-btn" disabled>
+                    <span class="btn-icon">⬆️</span> Upload & Track
+                </button>
+            </form>
+        </section>
+
+        <!-- Bookings Table -->
+        <section class="card" id="bookings-section">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <span class="card-icon">📋</span>
+                    Tracked Bookings
+                </h2>
+                <span class="badge">{{ bookings|length }} active</span>
+            </div>
+
+            {% if bookings %}
+            <div class="table-wrapper">
+                <table class="bookings-table" id="bookings-table">
+                    <thead>
+                        <tr>
+                            <th>PNR</th>
+                            <th>Flight</th>
+                            <th>Route</th>
+                            <th>Date</th>
+                            <th>Departure</th>
+                            <th>Status</th>
+                            <th>Last Checked</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for booking in bookings %}
+                        <tr class="booking-row">
+                            <td class="pnr-cell">
+                                <span class="pnr-code">{{ booking.pnr }}</span>
+                                <span class="passenger-name">{{ booking.passenger_name }}</span>
+                            </td>
+                            <td>{{ booking.flight_number or '—' }}</td>
+                            <td>
+                                <span class="route-badge">{{ booking.route or '—' }}</span>
+                            </td>
+                            <td class="date-cell">{{ booking.flight_date }}</td>
+                            <td>{{ booking.departure_time or '—' }}</td>
+                            <td>
+                                <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">
+                                    {{ booking.status }}
+                                </span>
+                            </td>
+                            <td class="last-checked">
+                                {{ booking.last_checked or 'Not yet' }}
+                            </td>
+                            <td>
+                                <form action="/delete/{{ booking.id }}" method="POST" class="inline-form"
+                                      onsubmit="return confirm('Remove this booking from tracking?')">
+                                    <button type="submit" class="btn-delete" title="Remove from tracking">🗑️</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% if booking.status_detail %}
+                        <tr class="detail-row">
+                            <td colspan="8" class="detail-cell">
+                                📋 {{ booking.status_detail }}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state" id="empty-state">
+                <div class="empty-icon">🛫</div>
+                <h3>No bookings tracked yet</h3>
+                <p>Upload an IndiGo booking confirmation PDF to get started</p>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Info Section -->
+        <section class="card info-card">
+            <h3>How it works</h3>
+            <div class="steps">
+                <div class="step">
+                    <span class="step-num">1</span>
+                    <div>
+                        <strong>Upload</strong>
+                        <p>Drop your IndiGo booking PDF</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <span class="step-num">2</span>
+                    <div>
+                        <strong>Auto-Check</strong>
+                        <p>Status checked at 8 AM & 6 PM IST</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <span class="step-num">3</span>
+                    <div>
+                        <strong>Email Alert</strong>
+                        <p>Get status updates in your inbox</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <span class="step-num">4</span>
+                    <div>
+                        <strong>Auto-Stop</strong>
+                        <p>Tracking stops after flight date</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>PNR Tracker • Built for IndiGo flights • Auto-checks at 8 AM & 6 PM IST</p>
+    </footer>
+
+    <script>
+        // File upload interactions
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+        const filePreview = document.getElementById('file-preview');
+        const fileName = document.getElementById('file-name');
+        const fileRemove = document.getElementById('file-remove');
+        const uploadBtn = document.getElementById('upload-btn');
+        const uploadContent = document.querySelector('.upload-content');
+
+        // Click to browse
+        uploadZone.addEventListener('click', (e) => {
+            if (e.target !== fileRemove) {
+                fileInput.click();
+            }
+        });
+
+        // Drag and drop
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('drag-over');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type === 'application/pdf') {
+                fileInput.files = files;
+                showFilePreview(files[0].name);
+            }
+        });
+
+        // File selected
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                showFilePreview(fileInput.files[0].name);
+            }
+        });
+
+        function showFilePreview(name) {
+            fileName.textContent = name;
+            filePreview.style.display = 'flex';
+            uploadContent.style.display = 'none';
+            uploadBtn.disabled = false;
+        }
+
+        // Remove file
+        fileRemove.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.value = '';
+            filePreview.style.display = 'none';
+            uploadContent.style.display = 'flex';
+            uploadBtn.disabled = true;
+        });
+
+        // Auto-dismiss flash messages
+        setTimeout(() => {
+            document.querySelectorAll('.flash').forEach(el => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(-10px)';
+                setTimeout(() => el.remove(), 300);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

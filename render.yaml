@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: pnr-tracker
+    runtime: docker
+    plan: free
+    envVars:
+      - key: SMTP_EMAIL
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: RECIPIENT_EMAIL
+        sync: false
+      - key: FLASK_PORT
+        value: 8080
+      - key: CHECK_TIMES
+        value: "08:00,18:00"
+      - key: FLASK_SECRET_KEY
+        generateValue: true
