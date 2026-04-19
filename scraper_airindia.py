@@ -35,12 +35,49 @@ def _is_cloud():
 
 
 def _create_stealth_driver():
-    """Create a Chrome driver with stealth settings to bypass bot detection."""
+    """Create a Chrome driver with selenium-stealth to bypass Imperva/Incapsula bot detection."""
+    # Fix SSL cert issue on macOS Python
+    import ssl
+    import os
+    try:
+        import certifi
+        os.environ['SSL_CERT_FILE'] = certifi.where()
+        os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
+    except ImportError:
+        pass
+
+    # Try undetected-chromedriver first (strongest anti-detection)
+    try:
+        import undetected_chromedriver as uc
+
+        options = uc.ChromeOptions()
+        options.add_argument('--window-size=1920,1080')
+        options.add_argument('--no-first-run')
+        options.add_argument('--no-default-browser-check')
+
+        if _is_cloud():
+            options.add_argument('--headless=new')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-gpu')
+            logger.info("Cloud mode: headless + no-sandbox (undetected-chromedriver)")
+
+        driver = uc.Chrome(options=options, use_subprocess=True)
+        logger.info("Using undetected-chromedriver (Imperva bypass)")
+        return driver
+
+    except Exception as e:
+        logger.warning(f"undetected-chromedriver failed ({e}), using selenium-stealth fallback")
+
+    # Fallback: regular Selenium + selenium-stealth
     options = Options()
-    options.add_argument('--window-size=1280,720')
+    options.add_argument('--window-size=1920,1080')
     options.add_argument('--disable-blink-features=AutomationControlled')
     options.add_argument('--no-first-run')
     options.add_argument('--no-default-browser-check')
+    options.add_argument('--disable-infobars')
+    options.add_argument('--lang=en-US,en;q=0.9')
+    options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
     options.add_experimental_option('excludeSwitches', ['enable-automation'])
     options.add_experimental_option('useAutomationExtension', False)
 
@@ -49,10 +86,7 @@ def _create_stealth_driver():
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
-        options.add_argument('--disable-extensions')
-        options.add_argument('--disable-software-rasterizer')
-        options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
-        logger.info("Cloud mode: headless + no-sandbox + stealth user-agent")
+        options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
 
     try:
         from webdriver_manager.chrome import ChromeDriverManager
@@ -61,36 +95,95 @@ def _create_stealth_driver():
     except Exception:
         driver = webdriver.Chrome(options=options)
 
-    # Remove webdriver flag from navigator
+    # Remove webdriver flag
     driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-        'source': 'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
+        'source': '''
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+            Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+            window.chrome = { runtime: {} };
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                    Promise.resolve({ state: Notification.permission }) :
+                    originalQuery(parameters)
+            );
+        '''
     })
+
+    # Apply selenium-stealth for deeper fingerprint masking
+    try:
+        from selenium_stealth import stealth
+        stealth(driver,
+                languages=["en-US", "en"],
+                vendor="Google Inc.",
+                platform="MacIntel",
+                webgl_vendor="Intel Inc.",
+                renderer="Intel Iris OpenGL Engine",
+                fix_hairline=True)
+        logger.info("selenium-stealth applied successfully")
+    except ImportError:
+        logger.warning("selenium-stealth not available, using basic stealth only")
+    except Exception as e:
+        logger.warning(f"selenium-stealth error: {e}")
 
     return driver
 
 
 def _dismiss_popups(driver, wait):
-    """Try to dismiss cookie consent and other popups."""
-    popup_selectors = [
-        # Cookie consent buttons
+    """Try to dismiss cookie consent, search overlays, and other popups."""
+    # 1. Cookie consent buttons
+    cookie_selectors = [
         'button[id*="accept"]',
         'button[class*="accept"]',
         'button[id*="cookie"]',
         'a[id*="accept"]',
-        # Generic close/dismiss
-        'button[aria-label="Close"]',
-        'button[class*="close"]',
-        '.modal-close',
     ]
-    for sel in popup_selectors:
+    for sel in cookie_selectors:
         try:
             btn = driver.find_element(By.CSS_SELECTOR, sel)
             if btn.is_displayed():
                 btn.click()
                 time.sleep(0.5)
-                logger.info(f"Dismissed popup: {sel}")
+                logger.info(f"Dismissed cookie popup: {sel}")
         except (NoSuchElementException, Exception):
             continue
+
+    time.sleep(1)
+
+    # 2. Close the "What are you looking for?" search overlay
+    # This overlay blocks the form — look for the X close button
+    search_close_selectors = [
+        'button[aria-label="Close"]',
+        'button[aria-label="close"]',
+        '.search-close',
+        '.close-search',
+        '.modal-close',
+        'button[class*="close"]',
+        # Close icon in the search overlay (SVG or ×)
+        '//button[contains(@class, "close")]',
+        '//div[contains(@class, "search")]//button',
+    ]
+    for sel in search_close_selectors:
+        try:
+            if sel.startswith('//'):
+                btns = driver.find_elements(By.XPATH, sel)
+            else:
+                btns = driver.find_elements(By.CSS_SELECTOR, sel)
+            for btn in btns:
+                if btn.is_displayed():
+                    btn.click()
+                    time.sleep(0.5)
+                    logger.info(f"Closed search/modal overlay: {sel}")
+        except (NoSuchElementException, Exception):
+            continue
+
+    # 3. Click on body/main content to dismiss any remaining overlay
+    try:
+        driver.execute_script("document.querySelector('.search-overlay, .overlay, .modal-backdrop')?.remove();")
+        logger.info("Removed overlay elements via JS")
+    except Exception:
+        pass
 
 
 def _find_and_fill_form(driver, wait, pnr, lastname):
@@ -129,22 +222,6 @@ def _find_and_fill_form(driver, wait, pnr, lastname):
         'input[aria-label*="Last"]',
         'input[aria-label*="last name"]',
         'input[aria-label*="Surname"]',
-    ]
-
-    submit_selectors = [
-        'button[type="submit"]',
-        'button[class*="retrieve"]',
-        'button[class*="search"]',
-        'button[class*="submit"]',
-        'button[data-testid*="retrieve"]',
-        'button[data-testid*="submit"]',
-        'input[type="submit"]',
-        # Text-based
-        '//button[contains(text(), "Retrieve")]',
-        '//button[contains(text(), "Search")]',
-        '//button[contains(text(), "retrieve")]',
-        '//button[contains(text(), "Submit")]',
-        '//button[contains(text(), "Find")]',
     ]
 
     # Fill PNR
@@ -197,8 +274,23 @@ def _find_and_fill_form(driver, wait, pnr, lastname):
     lastname_input.send_keys(lastname)
     time.sleep(0.5)
 
-    # Click submit
+    # Click submit using JavaScript to avoid overlay interception
     submit_btn = None
+    # Prioritize the "Submit" text button (visible in Air India UI as red button)
+    submit_selectors = [
+        '//button[contains(text(), "Submit")]',
+        '//button[contains(text(), "submit")]',
+        'button[type="submit"]',
+        '//button[contains(text(), "Retrieve")]',
+        '//button[contains(text(), "Search")]',
+        '//button[contains(text(), "Find")]',
+        'button[class*="submit"]',
+        'button[class*="retrieve"]',
+        'button[class*="search"]',
+        'button[data-testid*="retrieve"]',
+        'button[data-testid*="submit"]',
+        'input[type="submit"]',
+    ]
     for sel in submit_selectors:
         try:
             if sel.startswith('//'):
@@ -216,7 +308,11 @@ def _find_and_fill_form(driver, wait, pnr, lastname):
         raise Exception("Could not find submit/retrieve button")
 
     time.sleep(0.5)
-    submit_btn.click()
+    # Use JavaScript click to bypass any overlapping elements
+    driver.execute_script("arguments[0].scrollIntoView(true);", submit_btn)
+    time.sleep(0.3)
+    driver.execute_script("arguments[0].click();", submit_btn)
+    logger.info("Clicked submit button via JavaScript")
 
 
 def _try_check_pnr(pnr, lastname, attempt=1):
@@ -235,13 +331,22 @@ def _try_check_pnr(pnr, lastname, attempt=1):
 
         # Dismiss any popups/cookie banners
         _dismiss_popups(driver, wait)
+        time.sleep(2)
+
+        # Dismiss again in case something re-appeared
+        _dismiss_popups(driver, wait)
         time.sleep(1)
 
         # Find and fill the form
         _find_and_fill_form(driver, wait, pnr, lastname)
 
-        # Wait for results
-        time.sleep(10)
+        # Save pre-result screenshot for debugging
+        screenshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'screenshots')
+        os.makedirs(screenshots_dir, exist_ok=True)
+        driver.save_screenshot(os.path.join(screenshots_dir, f'AI_{pnr}_preresult.png'))
+
+        # Wait for results page to load
+        time.sleep(12)
 
         # Extract page content
         page_text = driver.find_element(By.TAG_NAME, 'body').text
@@ -276,9 +381,16 @@ def _try_check_pnr(pnr, lastname, attempt=1):
             return kw in region
 
         # Status detection
-        if 'invalid' in text_lower or 'not found' in text_lower or 'no booking' in text_lower:
+        if any(phrase in text_lower for phrase in [
+            'invalid', 'not found', 'no booking', 'cannot be found',
+            'booking cannot be found', 'try again', 'no record'
+        ]):
             result['status'] = 'Not Found'
             result['detail'] = 'PNR not found or invalid. Please verify the PNR and last name.'
+
+        elif 'access denied' in text_lower or 'incapsula' in text_lower:
+            result['status'] = 'Error'
+            result['detail'] = 'Air India website blocked the request. Will retry later.'
 
         elif _keyword_near_pnr('cancelled', pnr, page_text, window=300) or \
              'cancelled' in text_lower and text_lower.count('cancelled') > 1:

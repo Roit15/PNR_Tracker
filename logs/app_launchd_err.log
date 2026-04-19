@@ -32,3 +32,6 @@
 /Users/jangr/vibeCoding/PNR_Tracker/start_app.sh: line 15:  6946 Killed: 9               python app.py >> "$LOG_DIR/app.log" 2>&1
 /Users/jangr/vibeCoding/PNR_Tracker/start_app.sh: line 15:  6966 Killed: 9               python app.py >> "$LOG_DIR/app.log" 2>&1
 /Users/jangr/vibeCoding/PNR_Tracker/start_app.sh: line 15:  6980 Killed: 9               python app.py >> "$LOG_DIR/app.log" 2>&1
+/Users/jangr/vibeCoding/PNR_Tracker/start_app.sh: line 15: 11760 Killed: 9               python app.py >> "$LOG_DIR/app.log" 2>&1
+/Users/jangr/vibeCoding/PNR_Tracker/start_app.sh: line 15: 25049 Killed: 9               python app.py >> "$LOG_DIR/app.log" 2>&1
+/Users/jangr/vibeCoding/PNR_Tracker/start_app.sh: line 15: 25070 Killed: 9               python app.py >> "$LOG_DIR/app.log" 2>&1
