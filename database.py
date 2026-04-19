@@ -90,12 +90,28 @@ def get_active_bookings():
     """Get all active bookings (flight date >= today)."""
     conn = get_connection()
     cursor = conn.cursor()
-    today = date.today().strftime('%Y-%m-%d')
 
     cursor.execute('''
         SELECT * FROM bookings
         WHERE active = 1
         ORDER BY flight_date ASC
+    ''')
+    bookings = cursor.fetchall()
+    conn.close()
+    return bookings
+
+
+def get_completed_bookings():
+    """Get completed/past bookings (inactive), deduplicated by PNR keeping latest."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT b.* FROM bookings b
+        INNER JOIN (
+            SELECT pnr, MAX(id) as max_id FROM bookings WHERE active = 0 GROUP BY pnr
+        ) latest ON b.id = latest.max_id
+        ORDER BY b.flight_date DESC
     ''')
     bookings = cursor.fetchall()
     conn.close()
@@ -116,6 +132,16 @@ def get_bookings_to_check():
     bookings = cursor.fetchall()
     conn.close()
     return bookings
+
+
+def get_booking(booking_id):
+    """Get a specific booking by ID."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM bookings WHERE id = ?', (booking_id,))
+    booking = cursor.fetchone()
+    conn.close()
+    return booking
 
 
 def update_booking_status(pnr, status, status_detail=None):
@@ -143,16 +169,29 @@ def deactivate_booking(booking_id):
 
 
 def deactivate_past_bookings():
-    """Deactivate bookings where the flight date has passed."""
+    """Deactivate bookings where the flight date has passed, or today's flights that have already departed."""
     conn = get_connection()
     cursor = conn.cursor()
     today = date.today().strftime('%Y-%m-%d')
+    now_time = datetime.now().strftime('%H:%M')
 
+    # Deactivate flights from past days
     cursor.execute('''
-        UPDATE bookings SET active = 0
+        UPDATE bookings SET active = 0, status = CASE WHEN status = 'Pending Check' THEN 'Completed' ELSE status END
         WHERE flight_date < ? AND active = 1
     ''', (today,))
     count = cursor.rowcount
+
+    # Deactivate today's flights whose departure time has passed (3-hour buffer for flight duration)
+    # Only if departure_time is set and flight has likely landed
+    cursor.execute('''
+        UPDATE bookings SET active = 0, status = CASE WHEN status IN ('Pending Check', 'Confirmed') THEN 'Completed' ELSE status END
+        WHERE flight_date = ? AND active = 1
+        AND departure_time IS NOT NULL AND departure_time != ''
+        AND TIME(departure_time) < TIME(?, '-3 hours')
+    ''', (today, now_time))
+    count += cursor.rowcount
+
     conn.commit()
     conn.close()
     return count

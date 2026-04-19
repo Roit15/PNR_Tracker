@@ -3,26 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PNR Tracker — Indigo Flight Status Monitor</title>
+    <title>PNR Tracker — IndiGo Flight Status Monitor</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ now.strftime('%Y%m%d%H%M%S') if now else '1' }}">
 </head>
 <body>
+
     <!-- Header -->
     <header class="header">
         <div class="header-content">
             <div class="logo">
-                <span class="logo-icon">✈️</span>
+                <div class="logo-mark">✈</div>
                 <div>
                     <h1>PNR Tracker</h1>
                     <p class="subtitle">IndiGo Flight Status Monitor</p>
                 </div>
             </div>
             <div class="header-actions">
-                <form action="/check-now" method="POST" class="inline-form">
-                    <button type="submit" class="btn btn-accent" id="check-now-btn">
-                        <span class="btn-icon">🔄</span> Check Now
+                <form action="{{ url_for('check_now') }}" method="POST" class="inline-form">
+                    <button type="submit" class="btn btn-glow" id="check-now-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+                        <span>Check All</span>
                     </button>
                 </form>
             </div>
@@ -44,43 +46,78 @@
     {% endwith %}
 
     <main class="container">
-        <!-- Upload Section -->
-        <section class="card upload-card" id="upload-section">
-            <h2 class="card-title">
-                <span class="card-icon">📄</span>
-                Upload Booking Confirmation
-            </h2>
-            <form action="/upload" method="POST" enctype="multipart/form-data" id="upload-form">
-                <div class="upload-zone" id="upload-zone">
-                    <input type="file" name="file" id="file-input" accept=".pdf" class="file-input">
-                    <div class="upload-content">
-                        <div class="upload-icon">📎</div>
-                        <p class="upload-text">Drop your IndiGo booking PDF here</p>
-                        <p class="upload-hint">or click to browse</p>
-                    </div>
-                    <div class="file-preview" id="file-preview" style="display: none;">
-                        <span class="file-icon">📄</span>
-                        <span class="file-name" id="file-name"></span>
-                        <button type="button" class="file-remove" id="file-remove">×</button>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-primary btn-full" id="upload-btn" disabled>
-                    <span class="btn-icon">⬆️</span> Upload & Track
+
+        <!-- Add Booking — Tabbed Section -->
+        <section class="card" id="add-section">
+            <div class="tab-bar">
+                <button class="tab active" data-tab="upload-tab" id="tab-upload">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+                    Upload PDF
                 </button>
-            </form>
+                <button class="tab" data-tab="manual-tab" id="tab-manual">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Enter PNR
+                </button>
+            </div>
+
+            <!-- Upload Tab -->
+            <div class="tab-content active" id="upload-tab">
+                <form action="{{ url_for('upload') }}" method="POST" enctype="multipart/form-data" id="upload-form">
+                    <div class="upload-zone" id="upload-zone">
+                        <input type="file" name="files[]" id="file-input" accept=".pdf" class="file-input" multiple>
+                        <div class="upload-content" id="upload-content">
+                            <div class="upload-icon-wrap">
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="upload-svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            </div>
+                            <p class="upload-text">Drop your IndiGo booking PDFs</p>
+                            <p class="upload-hint">or click to browse · select multiple files</p>
+                        </div>
+                        <div class="file-list" id="file-list" style="display: none;"></div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-full" id="upload-btn" disabled>
+                        Upload & Track
+                    </button>
+                </form>
+            </div>
+
+            <!-- Manual Tab -->
+            <div class="tab-content" id="manual-tab">
+                <form action="{{ url_for('add_manual') }}" method="POST" id="manual-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="pnr">PNR Code</label>
+                            <input type="text" id="pnr" name="pnr" required placeholder="e.g. Q69JHS" maxlength="6" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="lastname">Last Name</label>
+                            <input type="text" id="lastname" name="lastname" required placeholder="e.g. Verma" autocomplete="off">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-full" id="manual-btn">
+                        Add & Verify
+                    </button>
+                </form>
+            </div>
         </section>
 
-        <!-- Bookings Table -->
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loading-overlay" style="display: none;">
+            <div class="loading-card">
+                <div class="spinner"></div>
+                <p class="loading-text">Verifying PNR on IndiGo...</p>
+                <p class="loading-hint">This takes about 20 seconds</p>
+            </div>
+        </div>
+
+        <!-- Bookings Section -->
         <section class="card" id="bookings-section">
             <div class="card-header">
-                <h2 class="card-title">
-                    <span class="card-icon">📋</span>
-                    Tracked Bookings
-                </h2>
-                <span class="badge">{{ bookings|length }} active</span>
+                <h2 class="section-title">Tracked Bookings</h2>
+                <span class="count-badge">{{ bookings|length }}</span>
             </div>
 
             {% if bookings %}
+            <!-- Desktop Table -->
             <div class="table-wrapper">
                 <table class="bookings-table" id="bookings-table">
                     <thead>
@@ -98,160 +135,354 @@
                     <tbody>
                         {% for booking in bookings %}
                         <tr class="booking-row">
-                            <td class="pnr-cell">
-                                <span class="pnr-code">{{ booking.pnr }}</span>
-                                <span class="passenger-name">{{ booking.passenger_name }}</span>
+                            <td>
+                                <div class="pnr-cell">
+                                    <span class="pnr-code">{{ booking.pnr }}</span>
+                                    <span class="passenger-name">{{ booking.passenger_name }}</span>
+                                </div>
                             </td>
-                            <td>{{ booking.flight_number or '—' }}</td>
+                            <td class="flight-num">{{ booking.flight_number or '—' }}</td>
                             <td>
                                 <span class="route-badge">{{ booking.route or '—' }}</span>
                             </td>
                             <td class="date-cell">{{ booking.flight_date }}</td>
-                            <td>{{ booking.departure_time or '—' }}</td>
+                            <td class="time-cell">{{ booking.departure_time or '—' }}</td>
                             <td>
                                 <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">
                                     {{ booking.status }}
                                 </span>
                             </td>
-                            <td class="last-checked">
-                                {{ booking.last_checked or 'Not yet' }}
-                            </td>
-                            <td>
-                                <form action="/delete/{{ booking.id }}" method="POST" class="inline-form"
+                            <td class="meta-cell">{{ booking.last_checked or 'Not yet' }}</td>
+                            <td class="actions-cell">
+                                <form action="{{ url_for('check_single', booking_id=booking.id) }}" method="POST" class="inline-form"
+                                      onsubmit="this.querySelector('button').innerHTML='⏳';">
+                                    <button type="submit" class="btn-icon-action" title="Refresh status">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+                                    </button>
+                                </form>
+                                <form action="{{ url_for('delete', booking_id=booking.id) }}" method="POST" class="inline-form"
                                       onsubmit="return confirm('Remove this booking from tracking?')">
-                                    <button type="submit" class="btn-delete" title="Remove from tracking">🗑️</button>
+                                    <button type="submit" class="btn-icon-action btn-icon-danger" title="Remove">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    </button>
                                 </form>
                             </td>
                         </tr>
-                        {% if booking.status_detail %}
-                        <tr class="detail-row">
-                            <td colspan="8" class="detail-cell">
-                                📋 {{ booking.status_detail }}
-                            </td>
-                        </tr>
-                        {% endif %}
+
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+
+            <!-- Mobile Cards (hidden on desktop, shown on mobile via CSS) -->
+            <div class="mobile-cards">
+                {% for booking in bookings %}
+                <div class="flight-card status-border-{{ booking.status|lower|replace(' ', '-') }}">
+                    <div class="flight-card-top">
+                        <div class="fc-pnr">
+                            <span class="pnr-code">{{ booking.pnr }}</span>
+                            <span class="passenger-name">{{ booking.passenger_name }}</span>
+                        </div>
+                        <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">{{ booking.status }}</span>
+                    </div>
+
+                    <div class="flight-card-body">
+                        <div class="fc-route">
+                            {% if booking.route and '—' not in (booking.route or '—') %}
+                            {% set cities = booking.route.split('-') %}
+                            <div class="fc-city">
+                                <span class="city-code">{{ cities[0] if cities|length > 0 else '—' }}</span>
+                            </div>
+                            <div class="fc-line">
+                                <div class="fc-flight-num">{{ booking.flight_number or '' }}</div>
+                                <div class="route-line">
+                                    <span class="dot"></span>
+                                    <span class="line"></span>
+                                    <svg class="plane-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+                                    <span class="line"></span>
+                                    <span class="dot"></span>
+                                </div>
+                            </div>
+                            <div class="fc-city">
+                                <span class="city-code">{{ cities[1] if cities|length > 1 else '—' }}</span>
+                            </div>
+                            {% else %}
+                            <div class="fc-noroute">{{ booking.flight_number or 'No route' }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="fc-meta">
+                            <div class="fc-meta-item">
+                                <span class="meta-label">Date</span>
+                                <span class="meta-value">{{ booking.flight_date }}</span>
+                            </div>
+                            <div class="fc-meta-item">
+                                <span class="meta-label">Departure</span>
+                                <span class="meta-value">{{ booking.departure_time or '—' }}</span>
+                            </div>
+                            <div class="fc-meta-item">
+                                <span class="meta-label">Checked</span>
+                                <span class="meta-value meta-muted">{{ booking.last_checked or 'Not yet' }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+                    <div class="fc-actions">
+                        <form action="{{ url_for('check_single', booking_id=booking.id) }}" method="POST" class="inline-form"
+                              onsubmit="this.querySelector('button').textContent='Checking...';">
+                            <button type="submit" class="fc-btn fc-btn-check">Refresh Status</button>
+                        </form>
+                        <form action="{{ url_for('delete', booking_id=booking.id) }}" method="POST" class="inline-form"
+                              onsubmit="return confirm('Remove this booking?')">
+                            <button type="submit" class="fc-btn fc-btn-delete">Remove</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
             {% else %}
-            <div class="empty-state" id="empty-state">
-                <div class="empty-icon">🛫</div>
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+                </div>
                 <h3>No bookings tracked yet</h3>
-                <p>Upload an IndiGo booking confirmation PDF to get started</p>
+                <p>Upload a PDF or enter a PNR to start tracking</p>
             </div>
             {% endif %}
         </section>
 
-        <!-- Info Section -->
+        <!-- Completed Flights Toggle -->
+        {% if completed %}
+        <section class="card completed-section" id="completed-section">
+            <div class="card-header">
+                <h2 class="section-title" style="color: var(--text-muted);">Completed Flights</h2>
+                <button class="btn-toggle" id="completed-toggle" onclick="toggleCompleted()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="toggle-chevron" id="toggle-chevron"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span id="toggle-text">Show {{ completed|length }}</span>
+                </button>
+            </div>
+
+            <div class="completed-body" id="completed-body" style="display: none;">
+                <!-- Desktop Table -->
+                <div class="table-wrapper">
+                    <table class="bookings-table completed-table">
+                        <thead>
+                            <tr>
+                                <th>PNR</th>
+                                <th>Flight</th>
+                                <th>Route</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for booking in completed %}
+                            <tr class="booking-row completed-row">
+                                <td>
+                                    <div class="pnr-cell">
+                                        <span class="pnr-code">{{ booking.pnr }}</span>
+                                        <span class="passenger-name">{{ booking.passenger_name }}</span>
+                                    </div>
+                                </td>
+                                <td class="flight-num">{{ booking.flight_number or '—' }}</td>
+                                <td><span class="route-badge">{{ booking.route or '—' }}</span></td>
+                                <td class="date-cell">{{ booking.flight_date }}</td>
+                                <td>
+                                    <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">
+                                        {{ booking.status }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Cards -->
+                <div class="mobile-cards">
+                    {% for booking in completed %}
+                    <div class="flight-card completed-card">
+                        <div class="flight-card-top">
+                            <div class="fc-pnr">
+                                <span class="pnr-code">{{ booking.pnr }}</span>
+                                <span class="passenger-name">{{ booking.passenger_name }}</span>
+                            </div>
+                            <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">{{ booking.status }}</span>
+                        </div>
+                        <div class="flight-card-body">
+                            <div class="fc-meta">
+                                <div class="fc-meta-item">
+                                    <span class="meta-label">Flight</span>
+                                    <span class="meta-value">{{ booking.flight_number or '—' }}</span>
+                                </div>
+                                <div class="fc-meta-item">
+                                    <span class="meta-label">Route</span>
+                                    <span class="meta-value">{{ booking.route or '—' }}</span>
+                                </div>
+                                <div class="fc-meta-item">
+                                    <span class="meta-label">Date</span>
+                                    <span class="meta-value">{{ booking.flight_date }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- How It Works -->
         <section class="card info-card">
-            <h3>How it works</h3>
-            <div class="steps">
-                <div class="step">
-                    <span class="step-num">1</span>
-                    <div>
-                        <strong>Upload</strong>
-                        <p>Drop your IndiGo booking PDF</p>
-                    </div>
+            <h3 class="section-title" style="margin-bottom: 20px;">How it works</h3>
+            <div class="steps-row">
+                <div class="step-item">
+                    <div class="step-num">1</div>
+                    <strong>Add</strong>
+                    <p>Upload PDF or enter PNR</p>
                 </div>
-                <div class="step">
-                    <span class="step-num">2</span>
-                    <div>
-                        <strong>Auto-Check</strong>
-                        <p>Status checked at 8 AM & 6 PM IST</p>
-                    </div>
+                <div class="step-connector"></div>
+                <div class="step-item">
+                    <div class="step-num">2</div>
+                    <strong>Auto-Check</strong>
+                    <p>8 AM & 6 PM IST daily</p>
                 </div>
-                <div class="step">
-                    <span class="step-num">3</span>
-                    <div>
-                        <strong>Email Alert</strong>
-                        <p>Get status updates in your inbox</p>
-                    </div>
+                <div class="step-connector"></div>
+                <div class="step-item">
+                    <div class="step-num">3</div>
+                    <strong>Alert</strong>
+                    <p>Email status updates</p>
                 </div>
-                <div class="step">
-                    <span class="step-num">4</span>
-                    <div>
-                        <strong>Auto-Stop</strong>
-                        <p>Tracking stops after flight date</p>
-                    </div>
+                <div class="step-connector"></div>
+                <div class="step-item">
+                    <div class="step-num">4</div>
+                    <strong>Auto-Stop</strong>
+                    <p>Stops after flight date</p>
                 </div>
             </div>
         </section>
     </main>
 
-    <!-- Footer -->
     <footer class="footer">
-        <p>PNR Tracker • Built for IndiGo flights • Auto-checks at 8 AM & 6 PM IST</p>
+        PNR Tracker • IndiGo flights • Auto-checks at 8 AM & 6 PM IST
     </footer>
 
     <script>
-        // File upload interactions
-        const uploadZone = document.getElementById('upload-zone');
-        const fileInput = document.getElementById('file-input');
-        const filePreview = document.getElementById('file-preview');
-        const fileName = document.getElementById('file-name');
-        const fileRemove = document.getElementById('file-remove');
-        const uploadBtn = document.getElementById('upload-btn');
-        const uploadContent = document.querySelector('.upload-content');
-
-        // Click to browse
-        uploadZone.addEventListener('click', (e) => {
-            if (e.target !== fileRemove) {
-                fileInput.click();
-            }
+        // --- Tab Switching ---
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
         });
 
-        // Drag and drop
+        // --- File Upload (multi-file) ---
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileList = document.getElementById('file-list');
+        const uploadBtn = document.getElementById('upload-btn');
+        const uploadContent = document.getElementById('upload-content');
+
+        // Accumulated files (DataTransfer lets us build a custom FileList)
+        let selectedFiles = new DataTransfer();
+
+        uploadZone.addEventListener('click', (e) => {
+            if (e.target.closest('.file-remove-btn')) return;
+            fileInput.click();
+        });
+
         uploadZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadZone.classList.add('drag-over');
         });
-
-        uploadZone.addEventListener('dragleave', () => {
-            uploadZone.classList.remove('drag-over');
-        });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
 
         uploadZone.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadZone.classList.remove('drag-over');
             const files = e.dataTransfer.files;
-            if (files.length > 0 && files[0].type === 'application/pdf') {
-                fileInput.files = files;
-                showFilePreview(files[0].name);
+            for (const f of files) {
+                if (f.type === 'application/pdf') selectedFiles.items.add(f);
             }
+            fileInput.files = selectedFiles.files;
+            renderFileList();
         });
 
-        // File selected
         fileInput.addEventListener('change', () => {
-            if (fileInput.files.length > 0) {
-                showFilePreview(fileInput.files[0].name);
+            for (const f of fileInput.files) {
+                selectedFiles.items.add(f);
             }
+            fileInput.files = selectedFiles.files;
+            renderFileList();
         });
 
-        function showFilePreview(name) {
-            fileName.textContent = name;
-            filePreview.style.display = 'flex';
+        function renderFileList() {
+            const files = selectedFiles.files;
+            if (files.length === 0) {
+                fileList.style.display = 'none';
+                uploadContent.style.display = 'flex';
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Upload & Track';
+                return;
+            }
+            fileList.innerHTML = '';
+            for (let i = 0; i < files.length; i++) {
+                const item = document.createElement('div');
+                item.className = 'file-preview';
+                item.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span class="file-name">${files[i].name}</span>
+                    <button type="button" class="file-remove-btn" data-index="${i}">×</button>
+                `;
+                fileList.appendChild(item);
+            }
+            fileList.style.display = 'flex';
             uploadContent.style.display = 'none';
             uploadBtn.disabled = false;
+            uploadBtn.textContent = files.length === 1 ? 'Upload & Track' : `Upload ${files.length} Files & Track`;
         }
 
-        // Remove file
-        fileRemove.addEventListener('click', (e) => {
+        fileList.addEventListener('click', (e) => {
+            const btn = e.target.closest('.file-remove-btn');
+            if (!btn) return;
             e.stopPropagation();
-            fileInput.value = '';
-            filePreview.style.display = 'none';
-            uploadContent.style.display = 'flex';
-            uploadBtn.disabled = true;
+            const idx = parseInt(btn.dataset.index);
+            const newDT = new DataTransfer();
+            for (let i = 0; i < selectedFiles.files.length; i++) {
+                if (i !== idx) newDT.items.add(selectedFiles.files[i]);
+            }
+            selectedFiles = newDT;
+            fileInput.files = selectedFiles.files;
+            renderFileList();
+        });
+        // --- Completed Flights Toggle ---
+        function toggleCompleted() {
+            const body = document.getElementById('completed-body');
+            const text = document.getElementById('toggle-text');
+            const chevron = document.getElementById('toggle-chevron');
+            const isHidden = body.style.display === 'none';
+            body.style.display = isHidden ? 'block' : 'none';
+            chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
+            text.textContent = isHidden ? 'Hide' : text.dataset.showText || 'Show';
+        }
+
+        // --- Loading Overlay for Manual PNR ---
+        document.getElementById('manual-form').addEventListener('submit', () => {
+            document.getElementById('loading-overlay').style.display = 'flex';
         });
 
-        // Auto-dismiss flash messages
+        // --- Auto-dismiss flash ---
         setTimeout(() => {
             document.querySelectorAll('.flash').forEach(el => {
                 el.style.opacity = '0';
                 el.style.transform = 'translateY(-10px)';
                 setTimeout(() => el.remove(), 300);
             });
-        }, 5000);
+        }, 6000);
     </script>
 </body>
 </html>

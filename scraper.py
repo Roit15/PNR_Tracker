@@ -123,19 +123,51 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
         result = {'status': 'Error', 'detail': '', 'raw_text': page_text}
         text_lower = page_text.lower()
 
+        # --- Helper: check if keyword appears near the PNR badge/status area ---
+        # IndiGo pages have ads, promos, T&C text that can contain keywords
+        # like "rescheduled" or "cancelled". We only trust these if they appear
+        # in proximity to the PNR number in the page text.
+        def _keyword_near_pnr(keyword, pnr_code, full_text, window=300):
+            """Return True if keyword appears within `window` chars of the PNR code."""
+            fl = full_text.lower()
+            kw = keyword.lower()
+            pnr_l = pnr_code.lower()
+            idx = fl.find(pnr_l)
+            if idx == -1:
+                return False
+            # Check a window around the PNR
+            start = max(0, idx - window)
+            end = min(len(fl), idx + len(pnr_l) + window)
+            region = fl[start:end]
+            return kw in region
+
         if 'invalid' in text_lower or 'not found' in text_lower or 'no booking' in text_lower:
             result['status'] = 'Not Found'
             result['detail'] = 'PNR not found or invalid. Please verify the PNR and last name.'
 
-        elif 'cancelled' in text_lower:
+        elif 'status of your payment' in text_lower or ('pending' in text_lower and 'pay now' in text_lower):
+            result['status'] = 'Pending Payment'
+            result['detail'] = 'Payment is pending or being processed.'
+
+        # --- Check Confirmed FIRST ---
+        # IndiGo shows a clear ✅ Confirmed badge next to the PNR.
+        # If we see "confirmed" near the PNR, trust that over loose keyword matches.
+        elif _keyword_near_pnr('confirmed', pnr, page_text, window=200):
+            result['status'] = 'Confirmed'
+            result['detail'] = extract_booking_detail(page_text)
+
+        # --- Negative statuses: only trust if near PNR or on standalone line ---
+        elif _keyword_near_pnr('cancelled', pnr, page_text, window=200) or \
+             'cancelled\n' in text_lower or '\ncancelled\n' in text_lower or \
+             text_lower.count('cancelled') > 2:
             result['status'] = 'Cancelled'
             result['detail'] = extract_status_detail(page_text, 'cancelled')
 
-        elif 'rescheduled' in text_lower:
+        elif _keyword_near_pnr('rescheduled', pnr, page_text, window=200):
             result['status'] = 'Rescheduled'
             result['detail'] = extract_status_detail(page_text, 'rescheduled')
 
-        elif 'delayed' in text_lower:
+        elif _keyword_near_pnr('delayed', pnr, page_text, window=200):
             result['status'] = 'Delayed'
             result['detail'] = extract_status_detail(page_text, 'delayed')
 
@@ -148,7 +180,7 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
             '6e prime', 'add-ons', 'add - ons', 'quickboard',
             'fast forward', 'baggage'
         ]):
-            # Indigo shows add-ons and "Retrieve Another Booking" for confirmed bookings
+            # Fallback: Indigo shows add-ons / nav for confirmed bookings
             result['status'] = 'Confirmed'
             result['detail'] = extract_booking_detail(page_text)
 
@@ -160,10 +192,94 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
             result['status'] = 'Checked'
             result['detail'] = page_text[:500] if page_text else 'Could not parse status'
 
+        if result['status'] not in ('Not Found', 'Error', 'Pending Payment'):
+            result['flight_info'] = extract_flight_info_from_web(page_text, lastname_or_email)
+
         return result
 
     finally:
         driver.quit()
+
+
+def extract_flight_info_from_web(text: str, lastname: str) -> dict:
+    """Extract flight date, number, route, and full name from IndiGo's retrieved page text."""
+    import re
+    from datetime import datetime
+    info = {
+        'flight_date': '',
+        'route': '',
+        'flight_number': '',
+        'departure_time': '',
+        'arrival_time': '',
+        'passenger_name': ''
+    }
+    
+    lines = text.split('\n')
+    passenger_name = None
+
+    # Extractor: Passenger Name
+    # Try looking for "Mr. First Last" or "Hello First Last"
+    for line in lines:
+        if lastname.lower() in line.lower():
+            # 1. Match title Prefix
+            m1 = re.search(r"(?i)\b(?:Mr\.|Ms\.|Mrs\.|Dr\.)\s+([A-Za-z\s]+?\s+" + re.escape(lastname) + r")\b", line)
+            if m1:
+                passenger_name = m1.group(1).strip()
+                break
+            # 2. Match "Hello"
+            m2 = re.search(r"(?i)\bHello\s+([A-Za-z\s]+?\s+" + re.escape(lastname) + r")\b", line)
+            if m2:
+                passenger_name = m2.group(1).strip()
+                break
+
+    # If no title matched, try simple 1-2 words before Last Name
+    if not passenger_name:
+        for line in lines:
+            if lastname.lower() in line.lower():
+                m3 = re.search(r"(?i)\b([A-Za-z]+\s+(?:[A-Za-z]+\s+)?" + re.escape(lastname) + r")\b", line)
+                if m3:
+                    val = m3.group(1).strip()
+                    if not val.lower().startswith("hello "): # Avoid matching "Hello First Last" again
+                        passenger_name = val
+                        break
+    
+    if passenger_name:
+        info['passenger_name'] = passenger_name
+
+    # 1. Flight Date
+    # Looking for "27 Apr, 26" or "27 Apr 2026"
+    date_match = re.search(r'(\d{1,2}\s+[A-Za-z]{3},?\s*\d{2,4})', text)
+    if date_match:
+        try:
+            date_str = date_match.group(1).replace(',', '')
+            parts = date_str.split()
+            if len(parts[-1]) == 2:
+                parts[-1] = "20" + parts[-1]
+            date_str = " ".join(parts)
+            dt = datetime.strptime(date_str, '%d %b %Y')
+            info['flight_date'] = dt.strftime('%Y-%m-%d')
+        except:
+            pass
+
+    # 2. Flight Number
+    fn_match = re.search(r'(6E\s*\d{3,4})', text)
+    if fn_match:
+        info['flight_number'] = fn_match.group(1).replace(' ', '')
+        
+    # 3. Route
+    # Look for standalone 3-letter codes at start of lines (e.g. DPS \n DEL)
+    codes = re.findall(r'^([A-Z]{3})$', text, re.MULTILINE)
+    if len(codes) >= 2:
+        info['route'] = f"{codes[0]}-{codes[1]}"
+        
+    # 4. Times
+    # Look for "19:10" at start of line
+    times = re.findall(r'^(\d{2}:\d{2})$', text, re.MULTILINE)
+    if times:
+        info['departure_time'] = times[0]
+        info['arrival_time'] = times[-1]
+        
+    return info
 
 
 def extract_status_detail(text, keyword):
@@ -191,13 +307,14 @@ def extract_booking_detail(text):
         'personalized bundle', 'chat with us', 'need help',
         'more inf', 'popular', 'about any issue', 'if any charges',
         'promptly refund', 'download app', 'newsletter',
+        'update contact', 'travel time', 'baggage per adult',
+        'baggage per child', 'baggage', 'flight details', 'pnr:',
+        'departure flight', 'return flight',
     ]
 
     lines = text.split('\n')
     details = []
-    good_keywords = ['flight', 'departure', 'arrival', 'terminal', 'gate',
-                     'seat', 'baggage', 'status', 'pnr', 'date', 'time',
-                     'passenger', 'boarding']
+    good_keywords = ['terminal', 'gate', 'boarding']
 
     for line in lines:
         line_stripped = line.strip()
@@ -209,11 +326,15 @@ def extract_booking_detail(text):
         if any(junk in line_lower for junk in junk_phrases):
             continue
 
+        # Skip breadcrumb/nav-style lines (many short fragments)
+        if line_stripped.count('|') >= 2:
+            continue
+
         # Keep lines with useful flight keywords
         if any(kw in line_lower for kw in good_keywords):
             details.append(line_stripped)
 
-    return ' | '.join(details[:8]) if details else 'Booking confirmed'
+    return ' | '.join(details[:8]) if details else ''
 
 
 def check_pnr_status(pnr, lastname_or_email):

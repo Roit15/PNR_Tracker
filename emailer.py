@@ -45,7 +45,8 @@ def send_status_email(bookings_with_status):
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
             server.login(smtp_email, smtp_password)
-            server.sendmail(smtp_email, recipient, msg.as_string())
+            recipient_list = [r.strip() for r in recipient.split(',')]
+            server.sendmail(smtp_email, recipient_list, msg.as_string())
             logger.info(f"Status email sent to {recipient}")
             return True
     except Exception as e:
@@ -79,7 +80,8 @@ def send_urgent_alert(cancelled_bookings):
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
             server.login(smtp_email, smtp_password)
-            server.sendmail(smtp_email, recipient, msg.as_string())
+            recipient_list = [r.strip() for r in recipient.split(',')]
+            server.sendmail(smtp_email, recipient_list, msg.as_string())
             logger.info(f"🚨 Urgent alert sent to {recipient} for PNRs: {pnr_list}")
             return True
     except Exception as e:

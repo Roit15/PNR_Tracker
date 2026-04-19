@@ -1,0 +1,90 @@
+2026-03-27 12:37:01 [INFO] apscheduler.scheduler: Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-27 12:37:01 [INFO] scheduler: Scheduled full report at 08:00 IST
+2026-03-27 12:37:01 [INFO] apscheduler.scheduler: Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-27 12:37:01 [INFO] scheduler: Scheduled full report at 18:00 IST
+2026-03-27 12:37:01 [INFO] apscheduler.scheduler: Added job "Full Status Report at 08:00 IST" to job store "default"
+2026-03-27 12:37:01 [INFO] apscheduler.scheduler: Added job "Full Status Report at 18:00 IST" to job store "default"
+2026-03-27 12:37:01 [INFO] apscheduler.scheduler: Scheduler started
+2026-03-27 12:37:01 [INFO] scheduler: Scheduler started — checks at 8 AM & 6 PM IST only
+2026-03-27 12:37:01 [INFO] __main__: PNR Tracker started! Listening on port 8080
+ * Serving Flask app 'app'
+ * Debug mode: off
+2026-03-27 12:37:01 [INFO] werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://192.168.1.44:8080
+2026-03-27 12:37:01 [INFO] werkzeug: [33mPress CTRL+C to quit[0m
+2026-03-27 12:37:05 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:37:05] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:37:26 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:37:26] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:37:26 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:37:26] "GET /pnr/static/style.css HTTP/1.1" 200 -
+2026-03-27 12:37:26 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:37:26] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-03-27 12:38:12 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:38:12] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:38:15 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:38:15] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:38:44 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:38:44] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:38:44 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:38:44] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 12:39:33 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:39:33] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:39:54 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:39:54] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:40:03 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:40:03] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:40:14 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:40:14] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:40:14 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:40:14] "GET /pnr/static/style.css HTTP/1.1" 200 -
+2026-03-27 12:40:15 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:40:15] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-03-27 12:53:45 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:53:45] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:54:40 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:54:40] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:56:32 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:56:32] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:56:52 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:56:52] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:56:57 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:56:57] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:56:59 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:56:59] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:57:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:57:06] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:57:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:57:06] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 12:57:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:57:06] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:57:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:57:06] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 12:57:08 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:57:08] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:57:08 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:57:08] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 12:57:08 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:57:08] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 12:57:09 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:57:09] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:57:09 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:57:09] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 12:58:21 [INFO] __main__: File uploaded: /Users/jangr/vibeCoding/PNR_Tracker/uploads/20260327_125820_sidhart_naakra.pdf
+2026-03-27 12:58:21 [INFO] __main__: Added booking: PNR=F931PJ, Flight=6E 1069, Route=DEL-KBV, Date=2026-04-16
+2026-03-27 12:58:21 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:58:21] "[32mPOST /pnr/upload HTTP/1.1[0m" 302 -
+2026-03-27 12:58:21 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:58:21] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:58:21 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:58:21] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 12:58:31 [INFO] __main__: File uploaded: /Users/jangr/vibeCoding/PNR_Tracker/uploads/20260327_125831_GOGNA_OUTBOUND.pdf
+2026-03-27 12:58:31 [INFO] __main__: Added booking: PNR=E8GWVZ, Flight=6E 1069, Route=DEL-KBV, Date=2026-04-16
+2026-03-27 12:58:31 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:58:31] "[32mPOST /pnr/upload HTTP/1.1[0m" 302 -
+2026-03-27 12:58:31 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:58:31] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:58:31 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:58:31] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 12:58:44 [INFO] scraper: [Attempt 1/3] Checking PNR: F931PJ
+2026-03-27 12:58:52 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:58:52] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:59:05 [INFO] scraper: Screenshot saved: /Users/jangr/vibeCoding/PNR_Tracker/screenshots/F931PJ_status.png
+2026-03-27 12:59:05 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 12:59:05] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:59:05 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:59:05] "[32mPOST /pnr/check/53 HTTP/1.1[0m" 302 -
+2026-03-27 12:59:05 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:59:05] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:59:05 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:59:05] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 12:59:11 [INFO] scraper: [Attempt 1/3] Checking PNR: E8GWVZ
+2026-03-27 12:59:32 [INFO] scraper: Screenshot saved: /Users/jangr/vibeCoding/PNR_Tracker/screenshots/E8GWVZ_status.png
+2026-03-27 12:59:32 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:59:32] "[32mPOST /pnr/check/54 HTTP/1.1[0m" 302 -
+2026-03-27 12:59:32 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:59:32] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 12:59:32 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 12:59:32] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 13:02:26 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:02:26] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 13:02:26 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:02:26] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 13:02:35 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:02:35] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 13:02:35 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:02:35] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 13:03:04 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:04] "[33mGET /apple-touch-icon-precomposed.png HTTP/1.1[0m" 404 -
+2026-03-27 13:03:04 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:04] "[33mGET /apple-touch-icon.png HTTP/1.1[0m" 404 -
+2026-03-27 13:03:04 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:04] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-03-27 13:03:04 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:04] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 13:03:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:06] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 13:03:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:06] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 13:03:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:06] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 13:03:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:06] "[33mGET /apple-touch-icon-precomposed.png HTTP/1.1[0m" 404 -
+2026-03-27 13:03:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:06] "[33mGET /apple-touch-icon.png HTTP/1.1[0m" 404 -
+2026-03-27 13:03:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:06] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2026-03-27 13:03:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:06] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 13:03:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:06] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 13:03:06 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:03:06] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -
+2026-03-27 13:03:15 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 13:03:15] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 13:03:15 [INFO] werkzeug: 103.219.228.174 - - [27/Mar/2026 13:03:15] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 13:05:02 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:05:02] "[33mGET / HTTP/1.1[0m" 404 -
+2026-03-27 13:05:04 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:05:04] "[33mGET / HTTP/1.1[0m" 404 -
+2026-03-27 13:05:08 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:05:08] "GET /pnr/ HTTP/1.1" 200 -
+2026-03-27 13:05:08 [INFO] werkzeug: 127.0.0.1 - - [27/Mar/2026 13:05:08] "[36mGET /pnr/static/style.css HTTP/1.1[0m" 304 -

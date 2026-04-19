@@ -146,8 +146,8 @@ def extract_passenger_name(text):
     After dedup: "Mr Manik Chopra" or similar
     """
     patterns = [
-        r'(Mr|Mrs|Ms|Miss|Master)\s+([A-Za-z]+\s+[A-Za-z]+)\s+Adult',
-        r'(Mr|Mrs|Ms|Miss|Master)\s+([A-Za-z]+\s+[A-Za-z]+)',
+        r'\b(Mr|Mrs|Ms|Miss|Master)\.?\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+Adult',
+        r'\b(Mr|Mrs|Ms|Miss|Master)\.?\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)',
         r'Passenger.*?:\s*(.*?)(?:\n|$)',
     ]
     for pattern in patterns:
@@ -156,6 +156,19 @@ def extract_passenger_name(text):
             if match.lastindex >= 2:
                 return match.group(2).strip()
             return match.group(1).strip()
+            
+    # Fallback for Firefox Print to PDF (2x duplicated characters)
+    doubled_patterns = [
+        r'\b(MMrr|MMrrss|MMss|MMiissss|MMaasstteerr)\.?\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+AAdduulltt',
+        r'\b(MMrr|MMrrss|MMss|MMiissss|MMaasstteerr)\.?\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+Adult',
+        r'\b(MMrr|MMrrss|MMss|MMiissss|MMaasstteerr)\.?\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)'
+    ]
+    for pattern in doubled_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            raw_name = match.group(2).strip()
+            return raw_name[::2]
+            
     return None
 
 

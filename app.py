@@ -10,9 +10,11 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
-from database import init_db, add_booking, get_active_bookings, delete_booking, deactivate_past_bookings
+from database import init_db, add_booking, get_active_bookings, get_booking, delete_booking, deactivate_past_bookings, update_booking_status, get_completed_bookings
 from pdf_parser import parse_booking
 from scheduler import run_status_check, setup_scheduler
+from scraper import check_pnr_status
+import scraper as scraper_module
 
 load_dotenv()
 
@@ -27,6 +29,35 @@ logger = logging.getLogger(__name__)
 # Flask app
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'pnr-tracker-secret-key-change-me')
+
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=0)
+
+# Strip /pnr prefix so the app works at BOTH localhost:8080/ and balireserve.com/pnr/
+class PathPrefixMiddleware:
+    """If the request path starts with /pnr, strip it before Flask sees it."""
+    def __init__(self, app):
+        self.app = app
+    def __call__(self, environ, start_response):
+        path = environ.get('PATH_INFO', '/')
+        if path.startswith('/pnr'):
+            environ['PATH_INFO'] = path[4:] or '/'
+            environ['SCRIPT_NAME'] = '/pnr'
+        return self.app(environ, start_response)
+
+app.wsgi_app = PathPrefixMiddleware(app.wsgi_app)
+
+# Disable browser caching so updates are always visible
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+@app.after_request
+def add_no_cache_headers(response):
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 
 # Upload config
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -46,78 +77,165 @@ def index():
     """Dashboard showing all tracked PNRs."""
     deactivate_past_bookings()
     bookings = get_active_bookings()
-    return render_template('index.html', bookings=bookings, now=datetime.now())
+    completed = get_completed_bookings()
+    return render_template('index.html', bookings=bookings, completed=completed, now=datetime.now())
 
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    """Upload and parse an Indigo booking confirmation PDF."""
-    if 'file' not in request.files:
+    """Upload and parse one or more Indigo booking confirmation PDFs."""
+    files = request.files.getlist('files[]')
+
+    if not files or all(f.filename == '' for f in files):
         flash('No file selected', 'error')
         return redirect(url_for('index'))
 
-    file = request.files['file']
-    if file.filename == '':
-        flash('No file selected', 'error')
-        return redirect(url_for('index'))
+    total_added = 0
+    total_skipped = 0
+    errors = []
 
-    if not allowed_file(file.filename):
-        flash('Only PDF files are allowed', 'error')
-        return redirect(url_for('index'))
+    for file in files:
+        if file.filename == '':
+            continue
+        if not allowed_file(file.filename):
+            errors.append(f'{file.filename}: not a PDF')
+            continue
 
-    try:
-        # Save the uploaded file
-        filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{timestamp}_{filename}"
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        logger.info(f"File uploaded: {filepath}")
+        try:
+            # Save the uploaded file
+            filename = secure_filename(file.filename)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"{timestamp}_{filename}"
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            logger.info(f"File uploaded: {filepath}")
 
-        # Parse the PDF
-        bookings = parse_booking(filepath)
+            # Parse the PDF
+            bookings = parse_booking(filepath)
 
-        added_count = 0
-        skipped_count = 0
-        for booking in bookings:
-            result = add_booking(
-                pnr=booking['pnr'],
-                passenger_name=booking['passenger_name'],
-                flight_number=booking['flight_number'],
-                route=booking['route'],
-                flight_date=booking['flight_date'],
-                departure_time=booking.get('departure_time'),
-                arrival_time=booking.get('arrival_time'),
-            )
-            if result:
-                added_count += 1
-                logger.info(f"Added booking: PNR={booking['pnr']}, "
-                          f"Flight={booking['flight_number']}, "
-                          f"Route={booking['route']}, "
-                          f"Date={booking['flight_date']}")
-            else:
-                skipped_count += 1
+            for booking in bookings:
+                result = add_booking(
+                    pnr=booking['pnr'],
+                    passenger_name=booking['passenger_name'],
+                    flight_number=booking['flight_number'],
+                    route=booking['route'],
+                    flight_date=booking['flight_date'],
+                    departure_time=booking.get('departure_time'),
+                    arrival_time=booking.get('arrival_time'),
+                )
+                if result:
+                    total_added += 1
+                    logger.info(f"Added booking: PNR={booking['pnr']}, "
+                              f"Flight={booking['flight_number']}, "
+                              f"Route={booking['route']}, "
+                              f"Date={booking['flight_date']}")
+                else:
+                    total_skipped += 1
 
-        if added_count > 0:
-            flash(f'✅ Added {added_count} booking(s) for tracking!', 'success')
-        if skipped_count > 0:
-            flash(f'ℹ️ Skipped {skipped_count} booking(s) — already being tracked.', 'info')
+        except ValueError as e:
+            errors.append(f'{file.filename}: {str(e)}')
+            logger.error(f"PDF parse error ({file.filename}): {e}")
+        except Exception as e:
+            errors.append(f'{file.filename}: {str(e)}')
+            logger.error(f"Upload error ({file.filename}): {e}")
 
-    except ValueError as e:
-        flash(f'Could not parse PDF: {str(e)}', 'error')
-        logger.error(f"PDF parse error: {e}")
-    except Exception as e:
-        flash(f'Error processing file: {str(e)}', 'error')
-        logger.error(f"Upload error: {e}")
+    if total_added > 0:
+        flash(f'✅ Added {total_added} booking(s) for tracking!', 'success')
+    if total_skipped > 0:
+        flash(f'ℹ️ Skipped {total_skipped} booking(s) — already being tracked.', 'info')
+    for err in errors:
+        flash(f'⚠️ {err}', 'error')
 
     return redirect(url_for('index'))
 
+
+@app.route('/add_manual', methods=['POST'])
+def add_manual():
+    """Manually add a PNR and Last Name to track by instant-checking Indigo."""
+    pnr = request.form.get('pnr', '').strip().upper()
+    lastname = request.form.get('lastname', '').strip()
+
+    if not pnr or not lastname:
+        flash('Please provide both PNR and Last Name.', 'error')
+        return redirect(url_for('index'))
+
+    # Verify via scraper
+    try:
+        flash(f'Fetching details for {pnr} from IndiGo in the background...', 'info')
+        result = check_pnr_status(pnr, lastname)
+        
+        if result['status'] in ('Not Found', 'Error'):
+            flash(f"Could not verify PNR on IndiGo: {result['detail']}", 'error')
+            return redirect(url_for('index'))
+            
+        flight_info = result.get('flight_info', {})
+        flight_date = flight_info.get('flight_date')
+
+        if not flight_date:
+            flash(f'Verified PNR {pnr}, but failed to auto-extract the Flight Date. Cannot track properly.', 'error')
+            return redirect(url_for('index'))
+
+        # Add tracking using the extracted details
+        fetched_name = flight_info.get('passenger_name') or lastname
+        
+        added = add_booking(
+            pnr=pnr,
+            passenger_name=fetched_name,
+            flight_number=flight_info.get('flight_number', ''),
+            route=flight_info.get('route', ''),
+            flight_date=flight_date,
+            departure_time=flight_info.get('departure_time', ''),
+            arrival_time=flight_info.get('arrival_time', ''),
+            passenger_lastname=lastname
+        )
+        if added:
+            # Pre-set the initial status
+            update_booking_status(pnr, result['status'], result['detail'])
+            flash(f'✅ Auto-fetched and added PNR {pnr} for tracking!', 'success')
+        else:
+            flash(f'ℹ️ PNR {pnr} is already being tracked.', 'info')
+            
+    except Exception as e:
+        flash(f'Error adding PNR manually: {str(e)}', 'error')
+        logger.error(f"Manual auto-add error: {e}")
+
+    return redirect(url_for('index'))
 
 @app.route('/delete/<int:booking_id>', methods=['POST'])
 def delete(booking_id):
     """Remove a booking from tracking."""
     delete_booking(booking_id)
     flash('Booking removed from tracking', 'success')
+    return redirect(url_for('index'))
+
+
+@app.route('/check/<int:booking_id>', methods=['POST'])
+def check_single(booking_id):
+    """Trigger an immediate status check for a single PNR."""
+    from database import update_booking_status
+    
+    booking = get_booking(booking_id)
+    if not booking:
+        flash('Booking not found', 'error')
+        return redirect(url_for('index'))
+
+    pnr = booking['pnr']
+    # If it's a newer database with passenger_lastname, use it. Otherwise fallback to splitting passenger_name.
+    lastname = booking['passenger_lastname'] if 'passenger_lastname' in booking.keys() and booking['passenger_lastname'] else ''
+    if not lastname and 'passenger_name' in booking.keys() and booking['passenger_name']:
+        parts = booking['passenger_name'].strip().split()
+        lastname = parts[-1] if parts else ''
+        
+    try:
+        flash(f'🔄 Checking status for {pnr}...', 'info')
+        # We process the check immediately rather than in background since user clicked specifically for this PNR.
+        status_result = check_pnr_status(pnr, lastname)
+        update_booking_status(pnr, status_result['status'], status_result['detail'])
+        flash(f'✅ Status for PNR {pnr} updated to {status_result["status"]}', 'success')
+    except Exception as e:
+        flash(f'Error checking PNR {pnr}: {str(e)}', 'error')
+        logger.error(f"Manual check error for {pnr}: {e}")
+        
     return redirect(url_for('index'))
 
 
