@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from database import init_db, add_booking, get_active_bookings, get_booking, delete_booking, deactivate_past_bookings, update_booking_status, get_completed_bookings
 from pdf_parser import parse_booking
 from scheduler import run_status_check, setup_scheduler
-from scraper import check_pnr_status
+from scraper_router import check_pnr_by_airline
 import scraper as scraper_module
 
 load_dotenv()
@@ -83,7 +83,7 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    """Upload and parse one or more Indigo booking confirmation PDFs."""
+    """Upload and parse booking confirmation PDFs (IndiGo or Air India — auto-detected)."""
     files = request.files.getlist('files[]')
 
     if not files or all(f.filename == '' for f in files):
@@ -114,6 +114,7 @@ def upload():
             bookings = parse_booking(filepath)
 
             for booking in bookings:
+                airline = booking.get('airline', 'indigo')
                 result = add_booking(
                     pnr=booking['pnr'],
                     passenger_name=booking['passenger_name'],
@@ -122,10 +123,12 @@ def upload():
                     flight_date=booking['flight_date'],
                     departure_time=booking.get('departure_time'),
                     arrival_time=booking.get('arrival_time'),
+                    airline=airline,
                 )
                 if result:
                     total_added += 1
-                    logger.info(f"Added booking: PNR={booking['pnr']}, "
+                    airline_label = 'Air India' if airline == 'airindia' else 'IndiGo'
+                    logger.info(f"Added {airline_label} booking: PNR={booking['pnr']}, "
                               f"Flight={booking['flight_number']}, "
                               f"Route={booking['route']}, "
                               f"Date={booking['flight_date']}")
@@ -151,21 +154,24 @@ def upload():
 
 @app.route('/add_manual', methods=['POST'])
 def add_manual():
-    """Manually add a PNR and Last Name to track by instant-checking Indigo."""
+    """Manually add a PNR and Last Name to track (IndiGo or Air India)."""
     pnr = request.form.get('pnr', '').strip().upper()
     lastname = request.form.get('lastname', '').strip()
+    airline = request.form.get('airline', 'indigo').strip().lower()
 
     if not pnr or not lastname:
         flash('Please provide both PNR and Last Name.', 'error')
         return redirect(url_for('index'))
 
+    airline_label = 'Air India' if airline == 'airindia' else 'IndiGo'
+
     # Verify via scraper
     try:
-        flash(f'Fetching details for {pnr} from IndiGo in the background...', 'info')
-        result = check_pnr_status(pnr, lastname)
+        flash(f'Fetching details for {pnr} from {airline_label}...', 'info')
+        result = check_pnr_by_airline(pnr, lastname, airline)
         
         if result['status'] in ('Not Found', 'Error'):
-            flash(f"Could not verify PNR on IndiGo: {result['detail']}", 'error')
+            flash(f"Could not verify PNR on {airline_label}: {result['detail']}", 'error')
             return redirect(url_for('index'))
             
         flight_info = result.get('flight_info', {})
@@ -186,12 +192,13 @@ def add_manual():
             flight_date=flight_date,
             departure_time=flight_info.get('departure_time', ''),
             arrival_time=flight_info.get('arrival_time', ''),
-            passenger_lastname=lastname
+            passenger_lastname=lastname,
+            airline=airline
         )
         if added:
             # Pre-set the initial status
             update_booking_status(pnr, result['status'], result['detail'])
-            flash(f'✅ Auto-fetched and added PNR {pnr} for tracking!', 'success')
+            flash(f'✅ Auto-fetched and added {airline_label} PNR {pnr} for tracking!', 'success')
         else:
             flash(f'ℹ️ PNR {pnr} is already being tracked.', 'info')
             
@@ -220,16 +227,17 @@ def check_single(booking_id):
         return redirect(url_for('index'))
 
     pnr = booking['pnr']
-    # If it's a newer database with passenger_lastname, use it. Otherwise fallback to splitting passenger_name.
     lastname = booking['passenger_lastname'] if 'passenger_lastname' in booking.keys() and booking['passenger_lastname'] else ''
     if not lastname and 'passenger_name' in booking.keys() and booking['passenger_name']:
         parts = booking['passenger_name'].strip().split()
         lastname = parts[-1] if parts else ''
+
+    airline = booking['airline'] if 'airline' in booking.keys() else 'indigo'
+    airline_label = 'Air India' if airline == 'airindia' else 'IndiGo'
         
     try:
-        flash(f'🔄 Checking status for {pnr}...', 'info')
-        # We process the check immediately rather than in background since user clicked specifically for this PNR.
-        status_result = check_pnr_status(pnr, lastname)
+        flash(f'🔄 Checking status for {pnr} on {airline_label}...', 'info')
+        status_result = check_pnr_by_airline(pnr, lastname, airline)
         update_booking_status(pnr, status_result['status'], status_result['detail'])
         flash(f'✅ Status for PNR {pnr} updated to {status_result["status"]}', 'success')
     except Exception as e:

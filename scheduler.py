@@ -10,7 +10,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from database import get_bookings_to_check, update_booking_status, deactivate_past_bookings
-from scraper import check_pnr_status
+from scraper_router import check_pnr_by_airline
 from emailer import send_status_email, send_urgent_alert
 
 load_dotenv()
@@ -47,10 +47,11 @@ def _check_all_pnrs():
         if not lastname and booking['passenger_name']:
             parts = booking['passenger_name'].strip().split()
             lastname = parts[-1] if parts else ''
-        logger.info(f"Checking PNR: {pnr} ({booking['flight_number']} {booking['route']}) lastname={lastname}")
+        airline = booking['airline'] if 'airline' in booking.keys() else 'indigo'
+        logger.info(f"Checking PNR: {pnr} ({booking['flight_number']} {booking['route']}) airline={airline} lastname={lastname}")
 
         try:
-            status_result = check_pnr_status(pnr, lastname)
+            status_result = check_pnr_by_airline(pnr, lastname, airline)
             update_booking_status(pnr, status_result['status'], status_result['detail'])
 
             results.append({

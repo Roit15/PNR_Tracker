@@ -34,7 +34,7 @@ def send_status_email(bookings_with_status):
 
     # Build email
     msg = MIMEMultipart('alternative')
-    msg['Subject'] = f"✈️ Indigo PNR Status Update — {datetime.now().strftime('%d %b %Y, %I:%M %p')}"
+    msg['Subject'] = f"✈️ PNR Status Update — {datetime.now().strftime('%d %b %Y, %I:%M %p')}"
     msg['From'] = smtp_email
     msg['To'] = recipient
 
@@ -69,7 +69,7 @@ def send_urgent_alert(cancelled_bookings):
 
     pnr_list = ', '.join([b['pnr'] for b in cancelled_bookings])
     msg = MIMEMultipart('alternative')
-    msg['Subject'] = f"🚨 URGENT: IndiGo Flight CANCELLED — PNR {pnr_list}"
+    msg['Subject'] = f"🚨 URGENT: Flight CANCELLED — PNR {pnr_list}"
     msg['From'] = smtp_email
     msg['To'] = recipient
 
@@ -95,9 +95,11 @@ def build_urgent_html(bookings):
 
     rows = ""
     for b in bookings:
+        airline_label = 'Air India' if b.get('airline') == 'airindia' else 'IndiGo'
         rows += f"""
         <tr>
             <td style="padding: 14px 16px; border-bottom: 1px solid #fecaca; font-weight: 700; color: #991b1b; font-size: 16px;">{b.get('pnr', 'N/A')}</td>
+            <td style="padding: 14px 16px; border-bottom: 1px solid #fecaca;">{airline_label}</td>
             <td style="padding: 14px 16px; border-bottom: 1px solid #fecaca;">{b.get('passenger_name', 'N/A')}</td>
             <td style="padding: 14px 16px; border-bottom: 1px solid #fecaca;">{b.get('flight_number', 'N/A')}</td>
             <td style="padding: 14px 16px; border-bottom: 1px solid #fecaca;">{b.get('route', 'N/A')}</td>
@@ -131,6 +133,7 @@ def build_urgent_html(bookings):
                     <thead>
                         <tr style="background: #fff5f5;">
                             <th style="padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; color: #991b1b; letter-spacing: 0.5px;">PNR</th>
+                            <th style="padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; color: #991b1b; letter-spacing: 0.5px;">Airline</th>
                             <th style="padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; color: #991b1b; letter-spacing: 0.5px;">Passenger</th>
                             <th style="padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; color: #991b1b; letter-spacing: 0.5px;">Flight</th>
                             <th style="padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; color: #991b1b; letter-spacing: 0.5px;">Route</th>
@@ -177,12 +180,14 @@ def build_html_email(bookings):
         status = b.get('status', 'Unknown')
         color = status_colors.get(status, '#6b7280')
         detail = b.get('detail', '')
+        airline_label = 'Air India' if b.get('airline') == 'airindia' else 'IndiGo'
         if len(detail) > 100:
             detail = detail[:100] + '...'
 
         rows_html += f"""
         <tr>
             <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: #1e3a5f;">{b.get('pnr', 'N/A')}</td>
+            <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-size: 12px;">{airline_label}</td>
             <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb;">{b.get('passenger_name', 'N/A')}</td>
             <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb;">{b.get('flight_number', 'N/A')}</td>
             <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb;">{b.get('route', 'N/A')}</td>
@@ -210,7 +215,7 @@ def build_html_email(bookings):
         <div style="max-width: 640px; margin: 0 auto; padding: 24px;">
             <!-- Header -->
             <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 32px 24px; border-radius: 16px 16px 0 0; text-align: center;">
-                <h1 style="margin: 0; color: white; font-size: 24px; font-weight: 700;">✈️ IndiGo PNR Status</h1>
+                <h1 style="margin: 0; color: white; font-size: 24px; font-weight: 700;">✈️ PNR Status Report</h1>
                 <p style="margin: 8px 0 0; color: rgba(255,255,255,0.8); font-size: 14px;">Checked on {now}</p>
             </div>
 
@@ -220,6 +225,7 @@ def build_html_email(bookings):
                     <thead>
                         <tr style="background: #f8fafc;">
                             <th style="padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">PNR</th>
+                            <th style="padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Airline</th>
                             <th style="padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Passenger</th>
                             <th style="padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Flight</th>
                             <th style="padding: 14px 16px; text-align: left; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Route</th>

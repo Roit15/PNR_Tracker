@@ -574,6 +574,84 @@ body {
 }
 
 /* ==================
+   AIRLINE SELECTOR & BADGES
+   ================== */
+.airline-selector {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.airline-option {
+    cursor: pointer;
+}
+.airline-option input[type="radio"] {
+    display: none;
+}
+.airline-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    border: 1.5px solid var(--border);
+    background: var(--bg-input);
+    color: var(--text-muted);
+    transition: all 0.2s var(--ease);
+}
+.airline-code {
+    font-size: 11px;
+    font-weight: 700;
+    opacity: 0.6;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.05);
+}
+.airline-option input[type="radio"]:checked + .airline-indigo {
+    background: rgba(59, 130, 246, 0.12);
+    border-color: #3b82f6;
+    color: #60a5fa;
+}
+.airline-option input[type="radio"]:checked + .airline-indigo .airline-code {
+    background: rgba(59, 130, 246, 0.2);
+    opacity: 1;
+}
+.airline-option input[type="radio"]:checked + .airline-airindia {
+    background: rgba(220, 38, 38, 0.1);
+    border-color: #dc2626;
+    color: #f87171;
+}
+.airline-option input[type="radio"]:checked + .airline-airindia .airline-code {
+    background: rgba(220, 38, 38, 0.2);
+    opacity: 1;
+}
+
+/* Small badges next to PNR */
+.airline-badge-sm {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-right: 4px;
+    line-height: 1;
+}
+.badge-indigo {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.25);
+}
+.badge-airindia {
+    background: rgba(220, 38, 38, 0.12);
+    color: #f87171;
+    border: 1px solid rgba(220, 38, 38, 0.25);
+}
+
+/* ==================
    COMPLETED FLIGHTS TOGGLE
    ================== */
 .completed-section {

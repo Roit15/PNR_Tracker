@@ -69,8 +69,8 @@
                             <div class="upload-icon-wrap">
                                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="upload-svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                             </div>
-                            <p class="upload-text">Drop your IndiGo booking PDFs</p>
-                            <p class="upload-hint">or click to browse · select multiple files</p>
+                            <p class="upload-text">Drop your booking PDFs</p>
+                            <p class="upload-hint">IndiGo or Air India · auto-detected · select multiple</p>
                         </div>
                         <div class="file-list" id="file-list" style="display: none;"></div>
                     </div>
@@ -83,6 +83,16 @@
             <!-- Manual Tab -->
             <div class="tab-content" id="manual-tab">
                 <form action="{{ url_for('add_manual') }}" method="POST" id="manual-form">
+                    <div class="airline-selector" id="airline-selector">
+                        <label class="airline-option">
+                            <input type="radio" name="airline" value="indigo" checked>
+                            <span class="airline-chip airline-indigo">IndiGo <span class="airline-code">6E</span></span>
+                        </label>
+                        <label class="airline-option">
+                            <input type="radio" name="airline" value="airindia">
+                            <span class="airline-chip airline-airindia">Air India <span class="airline-code">AI</span></span>
+                        </label>
+                    </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="pnr">PNR Code</label>
@@ -104,7 +114,7 @@
         <div class="loading-overlay" id="loading-overlay" style="display: none;">
             <div class="loading-card">
                 <div class="spinner"></div>
-                <p class="loading-text">Verifying PNR on IndiGo...</p>
+                <p class="loading-text">Verifying PNR...</p>
                 <p class="loading-hint">This takes about 20 seconds</p>
             </div>
         </div>
@@ -137,6 +147,7 @@
                         <tr class="booking-row">
                             <td>
                                 <div class="pnr-cell">
+                                    <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else 'badge-indigo' }}">{{ 'AI' if booking.airline == 'airindia' else '6E' }}</span>
                                     <span class="pnr-code">{{ booking.pnr }}</span>
                                     <span class="passenger-name">{{ booking.passenger_name }}</span>
                                 </div>
@@ -180,6 +191,7 @@
                 <div class="flight-card status-border-{{ booking.status|lower|replace(' ', '-') }}">
                     <div class="flight-card-top">
                         <div class="fc-pnr">
+                            <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else 'badge-indigo' }}">{{ 'AI' if booking.airline == 'airindia' else '6E' }}</span>
                             <span class="pnr-code">{{ booking.pnr }}</span>
                             <span class="passenger-name">{{ booking.passenger_name }}</span>
                         </div>
@@ -282,6 +294,7 @@
                             <tr class="booking-row completed-row">
                                 <td>
                                     <div class="pnr-cell">
+                                        <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else 'badge-indigo' }}">{{ 'AI' if booking.airline == 'airindia' else '6E' }}</span>
                                         <span class="pnr-code">{{ booking.pnr }}</span>
                                         <span class="passenger-name">{{ booking.passenger_name }}</span>
                                     </div>
@@ -306,6 +319,7 @@
                     <div class="flight-card completed-card">
                         <div class="flight-card-top">
                             <div class="fc-pnr">
+                                <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else 'badge-indigo' }}">{{ 'AI' if booking.airline == 'airindia' else '6E' }}</span>
                                 <span class="pnr-code">{{ booking.pnr }}</span>
                                 <span class="passenger-name">{{ booking.passenger_name }}</span>
                             </div>
