@@ -40,23 +40,123 @@ def deduplicate_text(text):
     return ''.join(result)
 
 
+def detect_airline(text):
+    """
+    Detect which airline a PDF belongs to based on content.
+    Returns 'airindia' or 'indigo'.
+    """
+    text_lower = text.lower()
+
+    # Air India indicators
+    ai_indicators = [
+        'air india', 'airindia.com', 'ai ', 'maharaja',
+        'tata group', 'star alliance',
+    ]
+    # IndiGo indicators
+    indigo_indicators = [
+        'indigo', 'goindigo', '6e ', '6e-', 'interglobe',
+    ]
+
+    ai_score = sum(1 for ind in ai_indicators if ind in text_lower)
+    indigo_score = sum(1 for ind in indigo_indicators if ind in text_lower)
+
+    # Also check flight number pattern
+    if re.search(r'AI[\s-]*\d{1,4}', text):
+        ai_score += 3
+    if re.search(r'6E\s*\d{3,4}', text):
+        indigo_score += 3
+
+    if ai_score > indigo_score:
+        return 'airindia'
+    return 'indigo'
+
+
 def parse_booking(pdf_path):
     """
-    Parse an Indigo booking confirmation PDF and extract key fields.
+    Parse a booking confirmation PDF — auto-detects airline (IndiGo or Air India).
 
     Returns a list of booking dicts (one per flight segment), each with:
-    - pnr: 6-char alphanumeric booking reference
-    - passenger_name: passenger's full name
-    - flight_number: e.g. '6E 1081'
-    - route: e.g. 'DEL-HKT'
-    - flight_date: date string in YYYY-MM-DD format
-    - departure_time: e.g. '15:40'
-    - arrival_time: e.g. '21:50'
+    - pnr, passenger_name, flight_number, route, flight_date,
+      departure_time, arrival_time, airline
     """
     raw_text = extract_text(pdf_path)
     if not raw_text:
         raise ValueError("Could not extract text from PDF. File may be corrupted or image-based.")
 
+    # Detect airline before dedup (Air India PDFs don't need dedup)
+    airline = detect_airline(raw_text)
+
+    if airline == 'airindia':
+        return parse_airindia_booking(raw_text)
+    else:
+        return parse_indigo_booking(raw_text)
+
+
+def parse_airindia_booking(raw_text):
+    """
+    Parse an Air India booking confirmation PDF.
+    Air India PDFs don't have the 4x character duplication.
+    """
+    text = raw_text  # No deduplication needed
+
+    # Extract PNR
+    pnr = extract_pnr(text)
+    if not pnr:
+        raise ValueError("Could not find PNR/Booking Reference in the Air India PDF.")
+
+    # Extract passenger name
+    passenger_name = extract_passenger_name_airindia(text)
+
+    # Extract flight segments
+    segments = extract_flight_segments_airindia(text)
+
+    if not segments:
+        # Fallback: try basic extraction
+        flight_date = extract_flight_date(text)
+        flight_number = extract_airindia_flight_number(text)
+        route = extract_route(text)
+        if flight_date:
+            segments = [{
+                'flight_number': flight_number or 'Unknown',
+                'route': route or 'Unknown',
+                'flight_date': flight_date,
+                'departure_time': None,
+                'arrival_time': None,
+            }]
+        else:
+            raise ValueError("Could not extract flight details from the Air India PDF.")
+
+    # Deduplicate
+    seen = set()
+    unique_segments = []
+    for seg in segments:
+        key = (seg.get('flight_number'), seg.get('flight_date'), seg.get('route'))
+        if key not in seen:
+            seen.add(key)
+            unique_segments.append(seg)
+    segments = unique_segments
+
+    bookings = []
+    for seg in segments:
+        bookings.append({
+            'pnr': pnr,
+            'passenger_name': passenger_name or 'Unknown',
+            'flight_number': seg.get('flight_number', 'Unknown'),
+            'route': seg.get('route', 'Unknown'),
+            'flight_date': seg.get('flight_date'),
+            'departure_time': seg.get('departure_time'),
+            'arrival_time': seg.get('arrival_time'),
+            'airline': 'airindia',
+        })
+
+    return bookings
+
+
+def parse_indigo_booking(raw_text):
+    """
+    Parse an IndiGo booking confirmation PDF.
+    Handles the 4x character duplication in IndiGo PDFs.
+    """
     # Deduplicate the 4x character rendering
     text = deduplicate_text(raw_text)
 
@@ -72,7 +172,6 @@ def parse_booking(pdf_path):
     segments = extract_flight_segments(text)
 
     if not segments:
-        # Fallback: try to extract at least the date
         flight_date = extract_flight_date(text)
         if flight_date:
             segments = [{
@@ -106,6 +205,7 @@ def parse_booking(pdf_path):
             'flight_date': seg.get('flight_date'),
             'departure_time': seg.get('departure_time'),
             'arrival_time': seg.get('arrival_time'),
+            'airline': 'indigo',
         })
 
     return bookings
@@ -284,12 +384,94 @@ def extract_flight_segments(text):
     return segments
 
 
+def extract_passenger_name_airindia(text):
+    """
+    Extract passenger name from Air India PDF.
+    Air India PDFs use standard text (no character duplication).
+    """
+    patterns = [
+        r'\b(Mr|Mrs|Ms|Miss|Master)\.?\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+(?:Adult|Child|Infant)',
+        r'\b(Mr|Mrs|Ms|Miss|Master)\.?\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)',
+        r'Passenger.*?:\s*(.*?)(?:\n|$)',
+        r'Name.*?:\s*(.*?)(?:\n|$)',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            if match.lastindex >= 2:
+                return match.group(2).strip()
+            return match.group(1).strip()
+    return None
+
+
+def extract_airindia_flight_number(text):
+    """
+    Extract Air India flight number.
+    Format: 'AI 123' or 'AI-123' or 'AI123'
+    """
+    match = re.search(r'AI[\s-]*(\d{1,4})', text)
+    if match:
+        return f"AI {match.group(1)}"
+    return None
+
+
+def extract_flight_segments_airindia(text):
+    """
+    Extract all flight segments from an Air India PDF.
+    """
+    segments = []
+
+    # Pattern: AI followed by number and a date
+    segment_pattern = r'AI[\s-]*(\d{1,4}).*?(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})'
+    segment_matches = list(re.finditer(segment_pattern, text, re.IGNORECASE))
+
+    # Times: HH:MM
+    time_pattern = r'\b(\d{2}:\d{2})\b'
+    all_times = re.findall(time_pattern, text)
+
+    # Routes
+    route_pattern = r'([A-Z]{3})\s*[-–→]\s*([A-Z]{3})'
+    route_matches = list(re.finditer(route_pattern, text))
+
+    if segment_matches:
+        for i, seg_match in enumerate(segment_matches):
+            flight_num = f"AI {seg_match.group(1)}"
+            date_str = f"{seg_match.group(2)} {seg_match.group(3)} {seg_match.group(4)}"
+            try:
+                flight_date = datetime.strptime(date_str, '%d %b %Y').strftime('%Y-%m-%d')
+            except ValueError:
+                continue
+
+            dep_time = None
+            arr_time = None
+            time_idx = i * 2
+            if time_idx < len(all_times):
+                dep_time = all_times[time_idx]
+            if time_idx + 1 < len(all_times):
+                arr_time = all_times[time_idx + 1]
+
+            route = 'Unknown'
+            if i < len(route_matches):
+                route = f"{route_matches[i].group(1)}-{route_matches[i].group(2)}"
+
+            segments.append({
+                'flight_number': flight_num,
+                'route': route,
+                'flight_date': flight_date,
+                'departure_time': dep_time,
+                'arrival_time': arr_time,
+            })
+
+    return segments
+
+
 if __name__ == '__main__':
     import sys
     if len(sys.argv) > 1:
         result = parse_booking(sys.argv[1])
         for booking in result:
-            print(f"\nPNR: {booking['pnr']}")
+            print(f"\nAirline: {booking.get('airline', 'unknown')}")
+            print(f"PNR: {booking['pnr']}")
             print(f"Passenger: {booking['passenger_name']}")
             print(f"Flight: {booking['flight_number']}")
             print(f"Route: {booking['route']}")

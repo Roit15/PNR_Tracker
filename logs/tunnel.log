@@ -91111,3 +91111,50 @@
 2026-04-19T17:08:59Z INF Registered tunnel connection connIndex=2 connection=3b389768-f091-42dc-9e43-ca772138e2d4 event=0 ip=198.41.192.77 location=bom06 protocol=quic
 2026-04-19T17:08:59Z INF Registered tunnel connection connIndex=3 connection=32f91210-1044-4134-9a96-ed2ba36cf3c8 event=0 ip=198.41.200.13 location=del03 protocol=quic
 2026-04-19T17:15:30Z ERR Failed to refresh DNS local resolver error="lookup region1.v2.argotunnel.com: i/o timeout"
+2026-04-19T17:38:18Z INF Initiating graceful shutdown due to signal terminated ...
+2026-04-19T17:38:18Z ERR failed to run the datagram handler error="context canceled" connIndex=3 event=0 ip=198.41.200.63
+2026-04-19T17:38:18Z ERR failed to run the datagram handler error="context canceled" connIndex=1 event=0 ip=198.41.200.33
+2026-04-19T17:38:18Z ERR failed to serve tunnel connection error="accept stream listener encountered a failure while serving" connIndex=1 event=0 ip=198.41.200.33
+2026-04-19T17:38:18Z ERR failed to serve tunnel connection error="accept stream listener encountered a failure while serving" connIndex=3 event=0 ip=198.41.200.63
+2026-04-19T17:38:18Z ERR Serve tunnel error error="accept stream listener encountered a failure while serving" connIndex=3 event=0 ip=198.41.200.63
+2026-04-19T17:38:18Z INF Retrying connection in up to 1s connIndex=3 event=0 ip=198.41.200.63
+2026-04-19T17:38:18Z ERR Serve tunnel error error="accept stream listener encountered a failure while serving" connIndex=1 event=0 ip=198.41.200.33
+2026-04-19T17:38:18Z INF Retrying connection in up to 1s connIndex=1 event=0 ip=198.41.200.33
+2026-04-19T17:38:18Z ERR Connection terminated connIndex=3
+2026-04-19T17:38:18Z ERR Connection terminated connIndex=1
+2026-04-19T17:38:18Z ERR failed to run the datagram handler error="context canceled" connIndex=0 event=0 ip=198.41.192.7
+2026-04-19T17:38:18Z ERR failed to serve tunnel connection error="accept stream listener encountered a failure while serving" connIndex=0 event=0 ip=198.41.192.7
+2026-04-19T17:38:18Z ERR Serve tunnel error error="accept stream listener encountered a failure while serving" connIndex=0 event=0 ip=198.41.192.7
+2026-04-19T17:38:18Z INF Retrying connection in up to 1s connIndex=0 event=0 ip=198.41.192.7
+2026-04-19T17:38:18Z ERR Connection terminated connIndex=0
+2026-04-19T17:38:18Z ERR failed to run the datagram handler error="Application error 0x0 (remote)" connIndex=2 event=0 ip=198.41.192.37
+2026-04-19T17:38:18Z ERR failed to serve tunnel connection error="accept stream listener encountered a failure while serving" connIndex=2 event=0 ip=198.41.192.37
+2026-04-19T17:38:18Z ERR Serve tunnel error error="accept stream listener encountered a failure while serving" connIndex=2 event=0 ip=198.41.192.37
+2026-04-19T17:38:18Z INF Retrying connection in up to 1s connIndex=2 event=0 ip=198.41.192.37
+2026-04-19T17:38:18Z ERR Connection terminated connIndex=2
+2026-04-19T17:38:18Z ERR no more connections active and exiting
+2026-04-19T17:38:18Z INF Tunnel server stopped
+2026-04-19T17:38:18Z INF Metrics server stopped
+2026-04-19T17:38:18Z INF icmp router terminated error="read udp 192.168.100.194:0: raw-read udp 192.168.100.194:0: use of closed network connection"
+2026-04-19T17:38:20Z INF Starting tunnel tunnelID=c2a02ad9-8948-4c5d-8be1-955e14f597fd
+2026-04-19T17:38:20Z INF Version 2026.3.0 (Checksum 633cee0fd41fd2020e17498beecc54811bf4fc99f891c080dc9343eb0f449c60)
+2026-04-19T17:38:20Z INF GOOS: darwin, GOVersion: go1.26.0, GoArch: arm64
+2026-04-19T17:38:20Z INF Settings: map[token:*****]
+2026-04-19T17:38:20Z INF Autoupdate frequency is set autoupdateFreq=86400000
+2026-04-19T17:38:20Z INF Generated Connector ID: f526c7db-df9f-4f34-994e-6d4c6c767973
+2026-04-19T17:38:21Z INF Initial protocol quic
+2026-04-19T17:38:21Z INF ICMP proxy will use 192.168.1.42 as source for IPv4
+2026-04-19T17:38:21Z INF ICMP proxy will use fe80::146b:4bc2:3792:da27 in zone en0 as source for IPv6
+2026-04-19T17:38:21Z INF Created ICMP proxy listening on 192.168.1.42:0
+2026-04-19T17:38:21Z INF ICMP proxy will use 192.168.1.42 as source for IPv4
+2026-04-19T17:38:21Z INF ICMP proxy will use fe80::146b:4bc2:3792:da27 in zone en0 as source for IPv6
+2026-04-19T17:38:21Z INF Starting metrics server on 127.0.0.1:20241/metrics
+2026-04-19T17:38:21Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=0 event=0 ip=198.41.200.63
+2026-04-19T17:38:22Z INF Registered tunnel connection connIndex=0 connection=0f9080fc-7f80-48ba-974c-e582b5f1ef32 event=0 ip=198.41.200.63 location=del04 protocol=quic
+2026-04-19T17:38:22Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=1 event=0 ip=198.41.192.167
+2026-04-19T17:38:22Z INF Updated to new configuration config="{\"ingress\":[{\"hostname\":\"balireserve.com\", \"service\":\"http://localhost:8080\"}, {\"originRequest\":{\"connectTimeout\":0, \"keepAliveConnections\":0, \"keepAliveTimeout\":0, \"proxyAddress\":\"\", \"tcpKeepAlive\":0, \"tlsTimeout\":0}, \"service\":\"http_status:503\"}], \"warp-routing\":{\"enabled\":false}}" version=5
+2026-04-19T17:38:22Z INF Registered tunnel connection connIndex=1 connection=c037c39b-4416-42e5-a533-7d68af8cd6a2 event=0 ip=198.41.192.167 location=bom06 protocol=quic
+2026-04-19T17:38:23Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=2 event=0 ip=198.41.192.77
+2026-04-19T17:38:23Z INF Registered tunnel connection connIndex=2 connection=e696581a-e887-489d-a40c-b502f81478a5 event=0 ip=198.41.192.77 location=bom03 protocol=quic
+2026-04-19T17:38:24Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=3 event=0 ip=198.41.200.43
+2026-04-19T17:38:24Z INF Registered tunnel connection connIndex=3 connection=99cecb72-b7df-49d5-869f-2a6a22f1c1b0 event=0 ip=198.41.200.43 location=del06 protocol=quic

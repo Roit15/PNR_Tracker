@@ -36,28 +36,37 @@ def init_db():
             last_checked TEXT,
             status_detail TEXT,
             created_at TEXT DEFAULT (datetime('now', 'localtime')),
-            active INTEGER DEFAULT 1
+            active INTEGER DEFAULT 1,
+            airline TEXT DEFAULT 'indigo'
         )
     ''')
 
-    # Migration: add passenger_lastname column if missing (existing DBs)
+    # Migrations: add columns if missing (existing DBs)
     cursor.execute("PRAGMA table_info(bookings)")
     columns = [col[1] for col in cursor.fetchall()]
+
     if 'passenger_lastname' not in columns:
         cursor.execute('ALTER TABLE bookings ADD COLUMN passenger_lastname TEXT')
-        # Backfill: extract last name from passenger_name for existing rows
         cursor.execute('SELECT id, passenger_name FROM bookings WHERE passenger_lastname IS NULL')
         for row in cursor.fetchall():
             parts = row[1].strip().split()
             lastname = parts[-1] if parts else ''
             cursor.execute('UPDATE bookings SET passenger_lastname = ? WHERE id = ?', (lastname, row[0]))
 
+    if 'airline' not in columns:
+        cursor.execute("ALTER TABLE bookings ADD COLUMN airline TEXT DEFAULT 'indigo'")
+        cursor.execute("UPDATE bookings SET airline = 'indigo' WHERE airline IS NULL")
+
+    if 'passenger_firstname' not in columns:
+        cursor.execute('ALTER TABLE bookings ADD COLUMN passenger_firstname TEXT')
+
     conn.commit()
     conn.close()
 
 
 def add_booking(pnr, passenger_name, flight_number, route, flight_date,
-                departure_time=None, arrival_time=None, passenger_lastname=None):
+                departure_time=None, arrival_time=None, passenger_lastname=None,
+                airline='indigo', passenger_firstname=None):
     """Add a new booking to track."""
     conn = get_connection()
     cursor = conn.cursor()
@@ -75,11 +84,11 @@ def add_booking(pnr, passenger_name, flight_number, route, flight_date,
         passenger_lastname = parts[-1] if parts else ''
 
     cursor.execute('''
-        INSERT INTO bookings (pnr, passenger_name, passenger_lastname, flight_number,
-                            route, flight_date, departure_time, arrival_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (pnr, passenger_name, passenger_lastname, flight_number, route,
-          flight_date, departure_time, arrival_time))
+        INSERT INTO bookings (pnr, passenger_name, passenger_lastname, passenger_firstname,
+                            flight_number, route, flight_date, departure_time, arrival_time, airline)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (pnr, passenger_name, passenger_lastname, passenger_firstname,
+          flight_number, route, flight_date, departure_time, arrival_time, airline))
     conn.commit()
     booking_id = cursor.lastrowid
     conn.close()

@@ -1,0 +1,12 @@
+Opens up a Pop Up Dialog
+1 ERROR
+The payment for this booking is incomplete, please complete the payment for this booking.
+Search for a booking
+Identification type
+Booking reference
+Booking reference
+Booking reference is a 6 alpha-numeric code.
+Last name
+Continue
+Copyright © 2026 Air India Ltd.All rights reserved.
+Use of this website indicates your compliance with our Privacy Policy, Conditions of Carriage, Terms and Conditions. Cookie Settings
