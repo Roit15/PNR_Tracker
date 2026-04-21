@@ -1,7 +1,7 @@
 Opens up a Pop Up Dialog
 MANAGE BOOKING
 YOUR BOOKING REFERENCE NUMBER IS
-YVYBVW
+YVZIKD
 Resend Confirmation Email
 Services Summary
 ADD CONTACT INFORMATION
@@ -29,7 +29,7 @@ Show flight details
    Your ticket has been booked by an external site or a travel agent. Please contact your booking agency for any modifications. Only tickets booked through the Air India website and mobile app can be modified here.
 Passenger
 Passengers
-Deepak Aggarwal
+Chestha Sachdeva
 Adult
 View Ticket Details
 Free Baggage Allowance

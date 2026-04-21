@@ -92,11 +92,19 @@
                             <input type="radio" name="airline" value="airindia">
                             <span class="airline-chip airline-airindia">Air India <span class="airline-code">AI</span></span>
                         </label>
+                        <label class="airline-option">
+                            <input type="radio" name="airline" value="vietjet">
+                            <span class="airline-chip airline-vietjet">VietJet <span class="airline-code">VJ</span></span>
+                        </label>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="pnr">PNR Code</label>
-                            <input type="text" id="pnr" name="pnr" required placeholder="e.g. Q69JHS" maxlength="6" autocomplete="off">
+                            <input type="text" id="pnr" name="pnr" required placeholder="e.g. UXWVRU" maxlength="8" autocomplete="off">
+                        </div>
+                        <div class="form-group" id="firstname-group" style="display:none;">
+                            <label for="firstname">First Name</label>
+                            <input type="text" id="firstname" name="firstname" placeholder="e.g. Deepak" autocomplete="off">
                         </div>
                         <div class="form-group">
                             <label for="lastname">Last Name</label>
@@ -147,7 +155,7 @@
                         <tr class="booking-row">
                             <td>
                                 <div class="pnr-cell">
-                                    <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else 'badge-indigo' }}">{{ 'AI' if booking.airline == 'airindia' else '6E' }}</span>
+                                    <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else 'badge-indigo') }}">{{ 'AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else '6E') }}</span>
                                     <span class="pnr-code">{{ booking.pnr }}</span>
                                     <span class="passenger-name">{{ booking.passenger_name }}</span>
                                 </div>
@@ -191,7 +199,7 @@
                 <div class="flight-card status-border-{{ booking.status|lower|replace(' ', '-') }}">
                     <div class="flight-card-top">
                         <div class="fc-pnr">
-                            <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else 'badge-indigo' }}">{{ 'AI' if booking.airline == 'airindia' else '6E' }}</span>
+                            <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else 'badge-indigo') }}">{{ 'AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else '6E') }}</span>
                             <span class="pnr-code">{{ booking.pnr }}</span>
                             <span class="passenger-name">{{ booking.passenger_name }}</span>
                         </div>
@@ -294,7 +302,7 @@
                             <tr class="booking-row completed-row">
                                 <td>
                                     <div class="pnr-cell">
-                                        <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else 'badge-indigo' }}">{{ 'AI' if booking.airline == 'airindia' else '6E' }}</span>
+                                        <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else 'badge-indigo') }}">{{ 'AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else '6E') }}</span>
                                         <span class="pnr-code">{{ booking.pnr }}</span>
                                         <span class="passenger-name">{{ booking.passenger_name }}</span>
                                     </div>
@@ -319,7 +327,7 @@
                     <div class="flight-card completed-card">
                         <div class="flight-card-top">
                             <div class="fc-pnr">
-                                <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else 'badge-indigo' }}">{{ 'AI' if booking.airline == 'airindia' else '6E' }}</span>
+                                <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else 'badge-indigo') }}">{{ 'AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else '6E') }}</span>
                                 <span class="pnr-code">{{ booking.pnr }}</span>
                                 <span class="passenger-name">{{ booking.passenger_name }}</span>
                             </div>
@@ -483,6 +491,19 @@
             chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
             text.textContent = isHidden ? 'Hide' : text.dataset.showText || 'Show';
         }
+
+        // --- Show/hide First Name field for VietJet ---
+        const airlineRadios = document.querySelectorAll('input[name="airline"]');
+        const firstnameGroup = document.getElementById('firstname-group');
+        const firstnameInput = document.getElementById('firstname');
+        function toggleFirstname() {
+            const selected = document.querySelector('input[name="airline"]:checked');
+            const isVietjet = selected && selected.value === 'vietjet';
+            firstnameGroup.style.display = isVietjet ? '' : 'none';
+            firstnameInput.required = isVietjet;
+        }
+        airlineRadios.forEach(r => r.addEventListener('change', toggleFirstname));
+        toggleFirstname();
 
         // --- Loading Overlay for Manual PNR ---
         document.getElementById('manual-form').addEventListener('submit', () => {

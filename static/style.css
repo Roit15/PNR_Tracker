@@ -627,6 +627,15 @@ body {
     background: rgba(220, 38, 38, 0.2);
     opacity: 1;
 }
+.airline-option input[type="radio"]:checked + .airline-vietjet {
+    background: rgba(255, 140, 0, 0.1);
+    border-color: #f97316;
+    color: #fb923c;
+}
+.airline-option input[type="radio"]:checked + .airline-vietjet .airline-code {
+    background: rgba(255, 140, 0, 0.2);
+    opacity: 1;
+}
 
 /* Small badges next to PNR */
 .airline-badge-sm {
@@ -649,6 +658,11 @@ body {
     background: rgba(220, 38, 38, 0.12);
     color: #f87171;
     border: 1px solid rgba(220, 38, 38, 0.25);
+}
+.badge-vietjet {
+    background: rgba(255, 140, 0, 0.12);
+    color: #fb923c;
+    border: 1px solid rgba(255, 140, 0, 0.25);
 }
 
 /* ==================

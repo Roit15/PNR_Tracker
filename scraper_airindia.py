@@ -13,6 +13,7 @@ import os
 import time
 import logging
 import re
+import random
 from datetime import datetime
 
 from selenium import webdriver
@@ -25,8 +26,24 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 logger = logging.getLogger(__name__)
 
+AIRINDIA_HOME = "https://www.airindia.com/in/en.html"
 AIRINDIA_URL = "https://www.airindia.com/in/en/manage/booking.html"
 MAX_RETRIES = 3
+
+# Rotate User-Agent strings to avoid fingerprint-based blocking
+USER_AGENTS = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
+]
+
+
+def _human_delay(min_s=1.0, max_s=3.0):
+    """Sleep for a random duration to mimic human behavior."""
+    time.sleep(random.uniform(min_s, max_s))
 
 
 def _is_cloud():
@@ -34,17 +51,22 @@ def _is_cloud():
     return os.getenv('RENDER') or os.getenv('DISPLAY') == ':99'
 
 
-def _create_stealth_driver():
-    """Create a Chrome driver with selenium-stealth to bypass Imperva/Incapsula bot detection."""
-    # Fix SSL cert issue on macOS Python
+def _fix_ssl():
+    """Patch macOS Python SSL so undetected-chromedriver can download its patcher."""
     import ssl
-    import os
+    # env vars don't help urllib — must patch the context factory directly
+    ssl._create_default_https_context = ssl._create_unverified_context
     try:
         import certifi
         os.environ['SSL_CERT_FILE'] = certifi.where()
         os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
     except ImportError:
         pass
+
+
+def _create_stealth_driver():
+    """Create a Chrome driver with undetected-chromedriver to bypass Imperva WAF."""
+    _fix_ssl()
 
     # Try undetected-chromedriver first (strongest anti-detection)
     try:
@@ -54,6 +76,7 @@ def _create_stealth_driver():
         options.add_argument('--window-size=1920,1080')
         options.add_argument('--no-first-run')
         options.add_argument('--no-default-browser-check')
+        options.add_argument('--lang=en-US,en;q=0.9')
 
         if _is_cloud():
             options.add_argument('--headless=new')
@@ -62,7 +85,8 @@ def _create_stealth_driver():
             options.add_argument('--disable-gpu')
             logger.info("Cloud mode: headless + no-sandbox (undetected-chromedriver)")
 
-        driver = uc.Chrome(options=options, use_subprocess=True)
+        # use_subprocess=False avoids a second SSL call for the patcher
+        driver = uc.Chrome(options=options, use_subprocess=False)
         logger.info("Using undetected-chromedriver (Imperva bypass)")
         return driver
 
@@ -77,7 +101,7 @@ def _create_stealth_driver():
     options.add_argument('--no-default-browser-check')
     options.add_argument('--disable-infobars')
     options.add_argument('--lang=en-US,en;q=0.9')
-    options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
+    options.add_argument(f'--user-agent={random.choice(USER_AGENTS)}')
     options.add_experimental_option('excludeSwitches', ['enable-automation'])
     options.add_experimental_option('useAutomationExtension', False)
 
@@ -144,12 +168,12 @@ def _dismiss_popups(driver, wait):
             btn = driver.find_element(By.CSS_SELECTOR, sel)
             if btn.is_displayed():
                 btn.click()
-                time.sleep(0.5)
+                time.sleep(0.2)
                 logger.info(f"Dismissed cookie popup: {sel}")
         except (NoSuchElementException, Exception):
             continue
 
-    time.sleep(1)
+    time.sleep(0.2)
 
     # 2. Close the "What are you looking for?" search overlay
     # This overlay blocks the form — look for the X close button
@@ -173,7 +197,7 @@ def _dismiss_popups(driver, wait):
             for btn in btns:
                 if btn.is_displayed():
                     btn.click()
-                    time.sleep(0.5)
+                    time.sleep(0.2)
                     logger.info(f"Closed search/modal overlay: {sel}")
         except (NoSuchElementException, Exception):
             continue
@@ -224,14 +248,22 @@ def _find_and_fill_form(driver, wait, pnr, lastname):
         'input[aria-label*="Surname"]',
     ]
 
+    # Wait for form inputs to appear in DOM generally
+    try:
+        wait.until(lambda d: len(d.find_elements(By.CSS_SELECTOR, 'input')) > 1)
+    except TimeoutException:
+        pass
+
     # Fill PNR
     pnr_input = None
     for sel in pnr_selectors:
         try:
-            pnr_input = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, sel)))
-            logger.info(f"Found PNR input: {sel}")
-            break
-        except TimeoutException:
+            pnr_input = driver.find_element(By.CSS_SELECTOR, sel)
+            if pnr_input.is_displayed():
+                logger.info(f"Found PNR input: {sel}")
+                break
+            pnr_input = None
+        except NoSuchElementException:
             continue
 
     if not pnr_input:
@@ -245,8 +277,11 @@ def _find_and_fill_form(driver, wait, pnr, lastname):
             raise Exception("Could not find PNR input field")
 
     pnr_input.clear()
-    pnr_input.send_keys(pnr)
-    time.sleep(0.5)
+    # Type characters with small random delays to mimic human typing
+    for char in pnr:
+        pnr_input.send_keys(char)
+        time.sleep(random.uniform(0.05, 0.15))
+    _human_delay(0.3, 0.8)
 
     # Fill Last Name
     lastname_input = None
@@ -271,8 +306,11 @@ def _find_and_fill_form(driver, wait, pnr, lastname):
             raise Exception("Could not find Last Name input field")
 
     lastname_input.clear()
-    lastname_input.send_keys(lastname)
-    time.sleep(0.5)
+    # Type characters with small random delays to mimic human typing
+    for char in lastname:
+        lastname_input.send_keys(char)
+        time.sleep(random.uniform(0.05, 0.15))
+    _human_delay(0.3, 0.8)
 
     # Click submit using JavaScript to avoid overlay interception
     submit_btn = None
@@ -307,10 +345,10 @@ def _find_and_fill_form(driver, wait, pnr, lastname):
     if not submit_btn:
         raise Exception("Could not find submit/retrieve button")
 
-    time.sleep(0.5)
+    _human_delay(0.3, 0.8)
     # Use JavaScript click to bypass any overlapping elements
     driver.execute_script("arguments[0].scrollIntoView(true);", submit_btn)
-    time.sleep(0.3)
+    _human_delay(0.3, 0.6)
     driver.execute_script("arguments[0].click();", submit_btn)
     logger.info("Clicked submit button via JavaScript")
 
@@ -324,18 +362,35 @@ def _try_check_pnr(pnr, lastname, attempt=1):
     try:
         logger.info(f"[AI Attempt {attempt}/{MAX_RETRIES}] Checking PNR: {pnr}")
 
+        # Step 1: Warm up by visiting homepage first (mimics real user flow)
+        logger.info("Warming up: visiting Air India homepage first...")
+        driver.get(AIRINDIA_HOME)
+        _human_delay(3.0, 6.0)
+
+        # Check if homepage itself got blocked
+        home_text = driver.find_element(By.TAG_NAME, 'body').text.lower()
+        if 'access denied' in home_text or 'incapsula' in home_text:
+            raise Exception("Access Denied on homepage — IP may be temporarily blocked by Imperva WAF")
+
+        # Step 2: Navigate to manage booking (natural browsing path)
+        logger.info("Navigating to manage booking page...")
         driver.get(AIRINDIA_URL)
-        time.sleep(8)
+        _human_delay(4.0, 8.0)
+
+        # Check if manage booking page got blocked
+        page_text_check = driver.find_element(By.TAG_NAME, 'body').text.lower()
+        if 'access denied' in page_text_check or 'incapsula' in page_text_check:
+            raise Exception("Access Denied on manage booking — Imperva WAF blocked the request")
 
         wait = WebDriverWait(driver, 20)
 
         # Dismiss any popups/cookie banners
         _dismiss_popups(driver, wait)
-        time.sleep(2)
+        _human_delay(0.5, 1.5)
 
         # Dismiss again in case something re-appeared
         _dismiss_popups(driver, wait)
-        time.sleep(1)
+        _human_delay(0.5, 1.0)
 
         # Find and fill the form
         _find_and_fill_form(driver, wait, pnr, lastname)
@@ -345,11 +400,53 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         os.makedirs(screenshots_dir, exist_ok=True)
         driver.save_screenshot(os.path.join(screenshots_dir, f'AI_{pnr}_preresult.png'))
 
-        # Wait for results page to load
-        time.sleep(12)
+        # Dynamically wait for results or secondary modal
+        result_keywords = ['status', 'terminal', 'invalid', 'not found', 'cancelled', 'confirmed', 'itinerary', 'seat', 'search for a booking']
+        start_time = time.time()
+        page_text = ""
+        while time.time() - start_time < 15:
+            try:
+                page_text = driver.find_element(By.TAG_NAME, 'body').text
+                text_lower = page_text.lower()
+                if any(kw in text_lower for kw in result_keywords) and len(page_text) > 100:
+                    time.sleep(1) # Give it 1 extra second to fully render
+                    page_text = driver.find_element(By.TAG_NAME, 'body').text
+                    break
+            except Exception:
+                pass
+            time.sleep(0.5)
 
-        # Extract page content
-        page_text = driver.find_element(By.TAG_NAME, 'body').text
+        text_lower = page_text.lower()
+        
+        # Check if the secondary modal "Search for a booking" appeared
+        if 'search for a booking' in text_lower and 'continue' in text_lower:
+            logger.info("Secondary booking modal detected. Filling out again...")
+            try:
+                # Need to find the inputs in the new modal
+                _find_and_fill_form(driver, wait, pnr, lastname)
+                # Ensure we also try clicking the Continue button if Submit wasn't found
+                continue_btns = driver.find_elements(By.XPATH, '//button[contains(translate(text(),"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz"), "continue")]')
+                for btn in continue_btns:
+                    if btn.is_displayed():
+                        driver.execute_script("arguments[0].click();", btn)
+                        logger.info("Clicked Continue button on secondary modal")
+                        break
+                
+                # Wait again for final results
+                start_time = time.time()
+                while time.time() - start_time < 15:
+                    try:
+                        page_text = driver.find_element(By.TAG_NAME, 'body').text
+                        text_lower = page_text.lower()
+                        if any(kw in text_lower for kw in ['status', 'terminal', 'invalid', 'not found', 'cancelled', 'confirmed', 'itinerary', 'seat']) and 'continue' not in text_lower:
+                            time.sleep(1)
+                            page_text = driver.find_element(By.TAG_NAME, 'body').text
+                            break
+                    except Exception:
+                        pass
+                    time.sleep(0.5)
+            except Exception as e:
+                logger.warning(f"Failed to handle secondary modal: {e}")
 
         # Save screenshot for debugging
         screenshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'screenshots')
@@ -381,12 +478,17 @@ def _try_check_pnr(pnr, lastname, attempt=1):
             return kw in region
 
         # Status detection
-        if any(phrase in text_lower for phrase in [
+        if 'payment for this booking is incomplete' in text_lower or \
+           'payment is incomplete' in text_lower:
+            result['status'] = 'Payment Pending'
+            result['detail'] = 'Payment incomplete — ticket not confirmed. Please complete payment on Air India.'
+
+        elif any(phrase in text_lower for phrase in [
             'invalid', 'not found', 'no booking', 'cannot be found',
             'booking cannot be found', 'try again', 'no record'
         ]):
-            result['status'] = 'Not Found'
-            result['detail'] = 'PNR not found or invalid. Please verify the PNR and last name.'
+            result['status'] = 'Cancelled'
+            result['detail'] = 'Booking not found on Air India — ticket likely cancelled.'
 
         elif 'access denied' in text_lower or 'incapsula' in text_lower:
             result['status'] = 'Error'
@@ -563,13 +665,17 @@ def check_pnr_status(pnr, lastname):
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             result = _try_check_pnr(pnr, lastname, attempt)
+            # If we got Access Denied in the result, treat it as a retryable error
+            if result.get('status') == 'Error' and 'blocked' in result.get('detail', '').lower():
+                raise Exception(result['detail'])
             return result
         except Exception as e:
             last_error = e
             logger.warning(f"AI Attempt {attempt}/{MAX_RETRIES} failed for PNR {pnr}: {e}")
             if attempt < MAX_RETRIES:
-                wait_secs = attempt * 10
-                logger.info(f"Waiting {wait_secs}s before retry...")
+                # Longer exponential backoff: 30s, 60s, 90s + random jitter
+                wait_secs = attempt * 30 + random.randint(5, 15)
+                logger.info(f"Waiting {wait_secs}s before retry (longer backoff to avoid WAF)...")
                 time.sleep(wait_secs)
 
     logger.error(f"All {MAX_RETRIES} attempts failed for Air India PNR {pnr}: {last_error}")

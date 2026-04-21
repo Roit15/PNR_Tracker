@@ -55,8 +55,10 @@ def init_db():
 
     if 'airline' not in columns:
         cursor.execute("ALTER TABLE bookings ADD COLUMN airline TEXT DEFAULT 'indigo'")
-        # Backfill: all existing bookings are IndiGo
         cursor.execute("UPDATE bookings SET airline = 'indigo' WHERE airline IS NULL")
+
+    if 'passenger_firstname' not in columns:
+        cursor.execute('ALTER TABLE bookings ADD COLUMN passenger_firstname TEXT')
 
     conn.commit()
     conn.close()
@@ -64,7 +66,7 @@ def init_db():
 
 def add_booking(pnr, passenger_name, flight_number, route, flight_date,
                 departure_time=None, arrival_time=None, passenger_lastname=None,
-                airline='indigo'):
+                airline='indigo', passenger_firstname=None):
     """Add a new booking to track."""
     conn = get_connection()
     cursor = conn.cursor()
@@ -82,11 +84,11 @@ def add_booking(pnr, passenger_name, flight_number, route, flight_date,
         passenger_lastname = parts[-1] if parts else ''
 
     cursor.execute('''
-        INSERT INTO bookings (pnr, passenger_name, passenger_lastname, flight_number,
-                            route, flight_date, departure_time, arrival_time, airline)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (pnr, passenger_name, passenger_lastname, flight_number, route,
-          flight_date, departure_time, arrival_time, airline))
+        INSERT INTO bookings (pnr, passenger_name, passenger_lastname, passenger_firstname,
+                            flight_number, route, flight_date, departure_time, arrival_time, airline)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (pnr, passenger_name, passenger_lastname, passenger_firstname,
+          flight_number, route, flight_date, departure_time, arrival_time, airline))
     conn.commit()
     booking_id = cursor.lastrowid
     conn.close()

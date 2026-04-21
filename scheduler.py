@@ -48,10 +48,11 @@ def _check_all_pnrs():
             parts = booking['passenger_name'].strip().split()
             lastname = parts[-1] if parts else ''
         airline = booking['airline'] if 'airline' in booking.keys() else 'indigo'
+        firstname = booking['passenger_firstname'] if 'passenger_firstname' in booking.keys() and booking['passenger_firstname'] else ''
         logger.info(f"Checking PNR: {pnr} ({booking['flight_number']} {booking['route']}) airline={airline} lastname={lastname}")
 
         try:
-            status_result = check_pnr_by_airline(pnr, lastname, airline)
+            status_result = check_pnr_by_airline(pnr, lastname, airline, firstname)
             update_booking_status(pnr, status_result['status'], status_result['detail'])
 
             results.append({
