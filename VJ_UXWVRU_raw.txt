@@ -15,24 +15,21 @@ Flight information
 Departure flight
 Fri, 24/04/2026
 HAN
-13:05
-1 hour 20 minutes
+17:00
+1 hour 15 minutes
 Direct flight | Detail
 DAD
-14:25
+18:15
 1 passenger
 99.34 USD
 Passenger information
 Add SkyID membership to earn SkyPoint
 Key in
-Sign up for Vietjet SkyJoy Membership - Enjoy X3 offers:
-Instantly get 200 SkyPoints.
-Receive SkyPoint for flights taken.
-Enjoy priority privileges at the airports.
-Register now!
- Adults: Mr AGGARWAL DEEPAK
+Adults: Mr AGGARWAL DEEPAK
 HAN
 DAD
+Seat Number:
+VJ509-20B
 Deluxe ancillary: 20kgs
 Special change: Special Change
 Price summary / Price details

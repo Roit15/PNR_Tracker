@@ -1,6 +1,4 @@
 Opens up a Pop Up Dialog
-1 ERROR
-The payment for this booking is incomplete, please complete the payment for this booking.
 Search for a booking
 Identification type
 Booking reference

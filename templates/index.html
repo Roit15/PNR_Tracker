@@ -10,6 +10,9 @@
 </head>
 <body>
 
+    <!-- Check Progress Bar (fixed at top) -->
+    <div id="check-progress-bar" class="check-progress-bar" style="width:0%; {{ '' if check_running else 'display:none' }}"></div>
+
     <!-- Header -->
     <header class="header">
         <div class="header-content">
@@ -17,14 +20,29 @@
                 <div class="logo-mark">✈</div>
                 <div>
                     <h1>PNR Tracker</h1>
-                    <p class="subtitle">IndiGo & Air India Status Monitor</p>
+                    <p class="subtitle">Multi-Airline Flight Status Monitor</p>
                 </div>
             </div>
             <div class="header-actions">
-                <form action="{{ url_for('check_now') }}" method="POST" class="inline-form">
-                    <button type="submit" class="btn btn-glow" id="check-now-btn">
+                {% if next_check %}
+                <span class="next-check-badge"><span class="pulse-dot"></span>Next: {{ next_check }}</span>
+                {% endif %}
+
+                <!-- Check All button (shown when idle) -->
+                <form action="{{ url_for('check_now') }}" method="POST" class="inline-form" id="check-all-form"
+                      style="{{ 'display:none' if check_running else '' }}">
+                    <button type="button" class="btn btn-glow" id="check-now-btn" onclick="confirmCheckAll()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
                         <span>Check All</span>
+                    </button>
+                </form>
+
+                <!-- Stop button (shown when checking) -->
+                <form action="{{ url_for('stop_check') }}" method="POST" class="inline-form" id="stop-check-form"
+                      style="{{ '' if check_running else 'display:none' }}">
+                    <button type="submit" class="btn btn-stop" id="stop-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                        <span id="stop-btn-text">Stop (<span id="check-progress-count">{{ check_progress.checked }}/{{ check_progress.total }}</span>)</span>
                     </button>
                 </form>
             </div>
@@ -39,6 +57,7 @@
         <div class="flash flash-{{ category }}">
             <span>{{ message }}</span>
             <button class="flash-close" onclick="this.parentElement.remove()">×</button>
+            <div class="flash-progress"></div>
         </div>
         {% endfor %}
     </div>
@@ -46,6 +65,17 @@
     {% endwith %}
 
     <main class="container">
+
+        <!-- AI Insights Section -->
+        <section class="card ai-insights-card" id="ai-insights-section" style="display: none;">
+            <div class="ai-header">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ai-icon"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                <h2>AI Insights</h2>
+            </div>
+            <div class="ai-content" id="ai-insights-content">
+                <p class="ai-loading">Generating insights...</p>
+            </div>
+        </section>
 
         <!-- Add Booking — Tabbed Section -->
         <section class="card" id="add-section">
@@ -70,7 +100,7 @@
                                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="upload-svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                             </div>
                             <p class="upload-text">Drop your booking PDFs</p>
-                            <p class="upload-hint">IndiGo or Air India · auto-detected · select multiple</p>
+                            <p class="upload-hint">IndiGo · Air India · VietJet · auto-detected · select multiple</p>
                         </div>
                         <div class="file-list" id="file-list" style="display: none;"></div>
                     </div>
@@ -121,9 +151,12 @@
         <!-- Loading Overlay -->
         <div class="loading-overlay" id="loading-overlay" style="display: none;">
             <div class="loading-card">
-                <div class="spinner"></div>
+                <div class="loading-plane">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+                </div>
                 <p class="loading-text">Verifying PNR...</p>
-                <p class="loading-hint">This takes about 20 seconds</p>
+                <p class="loading-hint">Scraping airline website</p>
+                <p class="loading-timer" id="loading-timer">0s</p>
             </div>
         </div>
 
@@ -140,41 +173,49 @@
                 <table class="bookings-table" id="bookings-table">
                     <thead>
                         <tr>
-                            <th>PNR</th>
-                            <th>Flight</th>
-                            <th>Route</th>
-                            <th>Date</th>
-                            <th>Departure</th>
-                            <th>Status</th>
-                            <th>Last Checked</th>
+                            <th class="sortable" data-col="0" onclick="sortTable(0)">PNR <span class="sort-label">↕</span></th>
+                            <th class="sortable" data-col="1" onclick="sortTable(1)">Flight <span class="sort-label">↕</span></th>
+                            <th class="sortable" data-col="2" onclick="sortTable(2)">Route <span class="sort-label">↕</span></th>
+                            <th class="sortable" data-col="3" onclick="sortTable(3)">Date <span class="sort-label">↕</span></th>
+                            <th class="sortable" data-col="4" onclick="sortTable(4)">Departure <span class="sort-label">↕</span></th>
+                            <th class="sortable" data-col="5" onclick="sortTable(5)">Status <span class="sort-label">↕</span></th>
+                            <th class="sortable" data-col="6" onclick="sortTable(6)">Checked <span class="sort-label">↕</span></th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for booking in bookings %}
-                        <tr class="booking-row">
-                            <td>
+                        <tr class="booking-row {{ 'has-detail' if booking.status_detail }}" data-detail-id="detail-{{ booking.id }}" onclick="toggleDetail('detail-{{ booking.id }}')">
+                            <td data-sort-key="{{ booking.pnr }}">
                                 <div class="pnr-cell">
                                     <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else 'badge-indigo') }}">{{ 'AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else '6E') }}</span>
                                     <span class="pnr-code">{{ booking.pnr }}</span>
                                     <span class="passenger-name">{{ booking.passenger_name }}</span>
+                                    {% if booking.passenger_count %}
+                                    <span class="passenger-count-badge" title="Passenger count">👤 {{ booking.passenger_count }}</span>
+                                    {% endif %}
                                 </div>
                             </td>
-                            <td class="flight-num">{{ booking.flight_number or '—' }}</td>
-                            <td>
+                            <td class="flight-num" data-sort-key="{{ booking.flight_number or '' }}">{{ booking.flight_number or '' }}</td>
+                            <td data-sort-key="{{ booking.route or '' }}">
                                 <span class="route-badge">{{ booking.route or '—' }}</span>
+                                {% if booking.pnr in trip_links %}
+                                <span class="trip-badge trip-{{ trip_links[booking.pnr].direction }}" title="Round Trip — {{ 'Outbound' if trip_links[booking.pnr].direction == 'outbound' else 'Return' }} · Paired with {{ trip_links[booking.pnr].paired_pnr }} ({{ trip_links[booking.pnr].paired_route }})">
+                                    {{ '✈→' if trip_links[booking.pnr].direction == 'outbound' else '↩' }} RT
+                                </span>
+                                {% endif %}
                             </td>
-                            <td class="date-cell">{{ booking.flight_date }}</td>
-                            <td class="time-cell">{{ booking.departure_time or '—' }}</td>
-                            <td>
+                            <td class="date-cell" data-sort-key="{{ booking.flight_date or '' }}">{{ booking.flight_date|format_date }}</td>
+                            <td class="time-cell" data-sort-key="{{ booking.departure_time or '' }}">{{ booking.departure_time or '—' }}</td>
+                            <td data-sort-key="{{ booking.status }}">
                                 <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">
                                     {{ booking.status }}
                                 </span>
                             </td>
-                            <td class="meta-cell">{{ booking.last_checked or 'Not yet' }}</td>
-                            <td class="actions-cell">
+                            <td class="meta-cell" data-sort-key="{{ booking.last_checked or '' }}">{{ booking.last_checked|time_ago }}</td>
+                            <td class="actions-cell" onclick="event.stopPropagation()">
                                 <form action="{{ url_for('check_single', booking_id=booking.id) }}" method="POST" class="inline-form"
-                                      onsubmit="this.querySelector('button').innerHTML='⏳';">
+                                      onsubmit="this.querySelector('button').classList.add('is-loading');">
                                     <button type="submit" class="btn-icon-action" title="Refresh status">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
                                     </button>
@@ -187,7 +228,13 @@
                                 </form>
                             </td>
                         </tr>
-
+                        {% if booking.status_detail %}
+                        <tr class="status-detail-row" id="detail-{{ booking.id }}">
+                            <td colspan="8">
+                                <span class="status-detail-text">📋 {{ booking.status_detail }}</span>
+                            </td>
+                        </tr>
+                        {% endif %}
                         {% endfor %}
                     </tbody>
                 </table>
@@ -202,6 +249,9 @@
                             <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else 'badge-indigo') }}">{{ 'AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else '6E') }}</span>
                             <span class="pnr-code">{{ booking.pnr }}</span>
                             <span class="passenger-name">{{ booking.passenger_name }}</span>
+                            {% if booking.passenger_count %}
+                            <span class="passenger-count-badge" title="Passenger count">👤 {{ booking.passenger_count }}</span>
+                            {% endif %}
                         </div>
                         <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">{{ booking.status }}</span>
                     </div>
@@ -230,10 +280,18 @@
                             <div class="fc-noroute">{{ booking.flight_number or 'No route' }}</div>
                             {% endif %}
                         </div>
+                        {% if booking.pnr in trip_links %}
+                        <div class="fc-trip-link">
+                            <span class="trip-badge trip-{{ trip_links[booking.pnr].direction }}">
+                                {{ '✈→' if trip_links[booking.pnr].direction == 'outbound' else '↩' }} Round Trip
+                            </span>
+                            <span class="trip-paired">{{ trip_links[booking.pnr].paired_route }} · {{ trip_links[booking.pnr].paired_pnr }}</span>
+                        </div>
+                        {% endif %}
                         <div class="fc-meta">
                             <div class="fc-meta-item">
                                 <span class="meta-label">Date</span>
-                                <span class="meta-value">{{ booking.flight_date }}</span>
+                                <span class="meta-value">{{ booking.flight_date|format_date }}</span>
                             </div>
                             <div class="fc-meta-item">
                                 <span class="meta-label">Departure</span>
@@ -241,16 +299,18 @@
                             </div>
                             <div class="fc-meta-item">
                                 <span class="meta-label">Checked</span>
-                                <span class="meta-value meta-muted">{{ booking.last_checked or 'Not yet' }}</span>
+                                <span class="meta-value meta-muted">{{ booking.last_checked|time_ago }}</span>
                             </div>
                         </div>
+                        {% if booking.status_detail %}
+                        <button class="fc-detail-toggle" onclick="this.nextElementSibling.classList.toggle('show')">📋 View details</button>
+                        <div class="fc-detail">{{ booking.status_detail }}</div>
+                        {% endif %}
                     </div>
-
-
 
                     <div class="fc-actions">
                         <form action="{{ url_for('check_single', booking_id=booking.id) }}" method="POST" class="inline-form"
-                              onsubmit="this.querySelector('button').textContent='Checking...';">
+                              onsubmit="this.querySelector('button').classList.add('is-loading'); this.querySelector('button').textContent='Checking...';">
                             <button type="submit" class="fc-btn fc-btn-check">Refresh Status</button>
                         </form>
                         <form action="{{ url_for('delete', booking_id=booking.id) }}" method="POST" class="inline-form"
@@ -284,7 +344,7 @@
                 </button>
             </div>
 
-            <div class="completed-body" id="completed-body" style="display: none;">
+            <div class="completed-body" id="completed-body">
                 <!-- Desktop Table -->
                 <div class="table-wrapper">
                     <table class="bookings-table completed-table">
@@ -305,11 +365,21 @@
                                         <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else 'badge-indigo') }}">{{ 'AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else '6E') }}</span>
                                         <span class="pnr-code">{{ booking.pnr }}</span>
                                         <span class="passenger-name">{{ booking.passenger_name }}</span>
+                                        {% if booking.passenger_count %}
+                                        <span class="passenger-count-badge" title="Passenger count">👤 {{ booking.passenger_count }}</span>
+                                        {% endif %}
                                     </div>
                                 </td>
-                                <td class="flight-num">{{ booking.flight_number or '—' }}</td>
-                                <td><span class="route-badge">{{ booking.route or '—' }}</span></td>
-                                <td class="date-cell">{{ booking.flight_date }}</td>
+                            <td class="flight-num">{{ booking.flight_number or '' }}</td>
+                                <td>
+                                    <span class="route-badge">{{ booking.route or '—' }}</span>
+                                    {% if booking.pnr in trip_links %}
+                                    <span class="trip-badge trip-{{ trip_links[booking.pnr].direction }}" title="Round Trip — {{ 'Outbound' if trip_links[booking.pnr].direction == 'outbound' else 'Return' }} · Paired with {{ trip_links[booking.pnr].paired_pnr }} ({{ trip_links[booking.pnr].paired_route }})">
+                                        {{ '✈→' if trip_links[booking.pnr].direction == 'outbound' else '↩' }} RT
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td class="date-cell">{{ booking.flight_date|format_date }}</td>
                                 <td>
                                     <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">
                                         {{ booking.status }}
@@ -330,6 +400,9 @@
                                 <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else 'badge-indigo') }}">{{ 'AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else '6E') }}</span>
                                 <span class="pnr-code">{{ booking.pnr }}</span>
                                 <span class="passenger-name">{{ booking.passenger_name }}</span>
+                                {% if booking.passenger_count %}
+                                <span class="passenger-count-badge" title="Passenger count">👤 {{ booking.passenger_count }}</span>
+                                {% endif %}
                             </div>
                             <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">{{ booking.status }}</span>
                         </div>
@@ -341,11 +414,15 @@
                                 </div>
                                 <div class="fc-meta-item">
                                     <span class="meta-label">Route</span>
-                                    <span class="meta-value">{{ booking.route or '—' }}</span>
+                                    <span class="meta-value">{{ booking.route or '—' }}
+                                        {% if booking.pnr in trip_links %}
+                                        <span class="trip-badge-sm trip-{{ trip_links[booking.pnr].direction }}">{{ '✈→' if trip_links[booking.pnr].direction == 'outbound' else '↩' }} RT</span>
+                                        {% endif %}
+                                    </span>
                                 </div>
                                 <div class="fc-meta-item">
                                     <span class="meta-label">Date</span>
-                                    <span class="meta-value">{{ booking.flight_date }}</span>
+                                    <span class="meta-value">{{ booking.flight_date|format_date }}</span>
                                 </div>
                             </div>
                         </div>
@@ -388,7 +465,7 @@
     </main>
 
     <footer class="footer">
-        PNR Tracker • IndiGo flights • Auto-checks at 8 AM & 6 PM IST
+        PNR Tracker • IndiGo · Air India · VietJet • Auto-checks at 8 AM & 6 PM IST
     </footer>
 
     <script>
@@ -481,15 +558,15 @@
             fileInput.files = selectedFiles.files;
             renderFileList();
         });
-        // --- Completed Flights Toggle ---
+        // --- Completed Flights Toggle (smooth CSS animation) ---
         function toggleCompleted() {
             const body = document.getElementById('completed-body');
             const text = document.getElementById('toggle-text');
             const chevron = document.getElementById('toggle-chevron');
-            const isHidden = body.style.display === 'none';
-            body.style.display = isHidden ? 'block' : 'none';
-            chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
-            text.textContent = isHidden ? 'Hide' : text.dataset.showText || 'Show';
+            const isExpanded = body.classList.contains('expanded');
+            body.classList.toggle('expanded');
+            chevron.style.transform = isExpanded ? '' : 'rotate(180deg)';
+            text.textContent = isExpanded ? 'Show {{ completed|length }}' : 'Hide';
         }
 
         // --- Show/hide First Name field for VietJet ---
@@ -505,19 +582,194 @@
         airlineRadios.forEach(r => r.addEventListener('change', toggleFirstname));
         toggleFirstname();
 
-        // --- Loading Overlay for Manual PNR ---
+        // --- Loading Overlay with Timer ---
         document.getElementById('manual-form').addEventListener('submit', () => {
             document.getElementById('loading-overlay').style.display = 'flex';
+            let seconds = 0;
+            const timerEl = document.getElementById('loading-timer');
+            setInterval(() => {
+                seconds++;
+                timerEl.textContent = seconds + 's';
+                if (seconds === 30) {
+                    document.querySelector('.loading-hint').textContent = 'Still working — airline sites can be slow...';
+                }
+            }, 1000);
         });
 
-        // --- Auto-dismiss flash ---
+        // --- Detail Row Toggle (Desktop) ---
+        function toggleDetail(id) {
+            const row = document.getElementById(id);
+            if (row) row.classList.toggle('show');
+        }
+
+        // --- Sortable Table ---
+        let currentSortCol = -1;
+        let currentSortDir = 'asc';
+
+        function sortTable(colIndex) {
+            const table = document.getElementById('bookings-table');
+            const tbody = table.querySelector('tbody');
+            const headers = table.querySelectorAll('th.sortable');
+
+            // Toggle direction
+            if (currentSortCol === colIndex) {
+                currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortDir = 'asc';
+                currentSortCol = colIndex;
+            }
+
+            // Update header arrows
+            headers.forEach(h => {
+                h.classList.remove('sort-asc', 'sort-desc');
+                const label = h.querySelector('.sort-label');
+                if (label) label.textContent = '↕';
+            });
+            headers[colIndex].classList.add('sort-' + currentSortDir);
+            const activeLabel = headers[colIndex].querySelector('.sort-label');
+            if (activeLabel) activeLabel.textContent = currentSortDir === 'asc' ? '▲' : '▼';
+
+            // Collect booking rows with their detail rows
+            const rowGroups = [];
+            const rows = Array.from(tbody.children);
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                if (row.classList.contains('booking-row')) {
+                    const group = { main: row, detail: null };
+                    // Check if next row is a detail row
+                    if (i + 1 < rows.length && rows[i + 1].classList.contains('status-detail-row')) {
+                        group.detail = rows[i + 1];
+                        i++; // skip detail row
+                    }
+                    const cell = row.children[colIndex];
+                    group.key = cell ? (cell.getAttribute('data-sort-key') || cell.textContent.trim()) : '';
+                    rowGroups.push(group);
+                }
+            }
+
+            // Sort
+            rowGroups.sort((a, b) => {
+                let va = a.key.toLowerCase();
+                let vb = b.key.toLowerCase();
+                // Try numeric comparison for dates/times
+                if (va && vb && !isNaN(Date.parse(va)) && !isNaN(Date.parse(vb))) {
+                    return currentSortDir === 'asc'
+                        ? new Date(va) - new Date(vb)
+                        : new Date(vb) - new Date(va);
+                }
+                if (va < vb) return currentSortDir === 'asc' ? -1 : 1;
+                if (va > vb) return currentSortDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            // Re-append in order
+            rowGroups.forEach(g => {
+                tbody.appendChild(g.main);
+                if (g.detail) tbody.appendChild(g.detail);
+            });
+        }
+
+        function confirmCheckAll() {
+            const count = {{ bookings|length }};
+            const overlay = document.createElement('div');
+            overlay.className = 'confirm-overlay';
+            overlay.innerHTML = `
+                <div class="confirm-card">
+                    <h3>Check All ${count} PNRs?</h3>
+                    <p>This will scrape all airline websites and may take a few minutes.</p>
+                    <div class="confirm-actions">
+                        <button class="btn-ghost" onclick="this.closest('.confirm-overlay').remove()">Cancel</button>
+                        <button class="btn btn-primary" onclick="document.getElementById('check-all-form').submit(); this.closest('.confirm-overlay').remove(); setTimeout(startCheckPolling, 1000);">Check All</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+        }
+
+        // --- Auto-dismiss flash with smooth slide-out ---
         setTimeout(() => {
             document.querySelectorAll('.flash').forEach(el => {
-                el.style.opacity = '0';
-                el.style.transform = 'translateY(-10px)';
-                setTimeout(() => el.remove(), 300);
+                el.classList.add('flash-exit');
+                setTimeout(() => el.remove(), 400);
             });
         }, 6000);
+
+        // --- Scroll to bookings on success flash ---
+        if (document.querySelector('.flash-success')) {
+            setTimeout(() => {
+                const section = document.getElementById('bookings-section');
+                if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
+        }
+        // --- Check progress polling ---
+        let checkPolling = null;
+        function startCheckPolling() {
+            const bar = document.getElementById('check-progress-bar');
+            const stopForm = document.getElementById('stop-check-form');
+            const checkForm = document.getElementById('check-all-form');
+            const countEl = document.getElementById('check-progress-count');
+
+            checkPolling = setInterval(async () => {
+                try {
+                    const res = await fetch('/api/check-status');
+                    const data = await res.json();
+
+                    if (data.running) {
+                        // Show stop, hide check
+                        if (stopForm) stopForm.style.display = '';
+                        if (checkForm) checkForm.style.display = 'none';
+                        if (bar) {
+                            bar.style.display = '';
+                            const pct = data.total > 0 ? (data.checked / data.total) * 100 : 0;
+                            bar.style.width = pct + '%';
+                        }
+                        if (countEl) countEl.textContent = data.checked + '/' + data.total;
+                    } else {
+                        // Done — show check, hide stop, refresh page
+                        clearInterval(checkPolling);
+                        if (bar) { bar.style.width = '100%'; }
+                        setTimeout(() => window.location.reload(), 500);
+                    }
+                } catch (e) {
+                    console.error('Poll error:', e);
+                }
+            }, 2000);
+        }
+
+        // Start polling if a check is running
+        {% if check_running %}
+        startCheckPolling();
+        {% endif %}
+        // AI Insights Fetch
+        document.addEventListener("DOMContentLoaded", async () => {
+            const aiSection = document.getElementById('ai-insights-section');
+            const aiContent = document.getElementById('ai-insights-content');
+            
+            // Only show AI section if there are bookings to analyze
+            const activeBookingsExist = document.querySelectorAll('.booking-row').length > 0;
+            if (!activeBookingsExist) {
+                return;
+            }
+            
+            aiSection.style.display = 'block';
+            
+            try {
+                const res = await fetch('/api/insights');
+                const data = await res.json();
+                
+                if (data.insights) {
+                    // Convert markdown-like bold to HTML for basic formatting
+                    let formatted = data.insights.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                    aiContent.innerHTML = `<p>${formatted}</p>`;
+                } else {
+                    aiSection.style.display = 'none';
+                }
+            } catch (e) {
+                aiContent.innerHTML = `<p class="ai-error">Failed to load insights.</p>`;
+                console.error("AI Insights Error:", e);
+            }
+        });
     </script>
 </body>
 </html>

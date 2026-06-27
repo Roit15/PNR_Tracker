@@ -125,7 +125,7 @@ def build_urgent_html(bookings):
             <div style="background: white; padding: 0; border-radius: 0 0 16px 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.12);">
                 <div style="padding: 20px 24px; background: #fef2f2; border-bottom: 2px solid #fecaca;">
                     <p style="margin: 0; color: #991b1b; font-weight: 600; font-size: 15px;">
-                        ⚠️ {len(bookings)} booking(s) has been cancelled or rescheduled. Please check your IndiGo account immediately.
+                        ⚠️ {len(bookings)} booking(s) has been cancelled or rescheduled. Please check your airline account immediately.
                     </p>
                 </div>
 
@@ -145,7 +145,8 @@ def build_urgent_html(bookings):
                 </table>
 
                 <div style="padding: 20px 24px; border-top: 1px solid #fecaca; text-align: center;">
-                    <a href="https://www.goindigo.in/account/my-bookings.html" style="display: inline-block; background: #dc2626; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">Check on IndiGo Website →</a>
+                    <a href="https://www.goindigo.in/account/my-bookings.html" style="display: inline-block; background: #dc2626; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 4px;">Check IndiGo →</a>
+                    <a href="https://www.airindia.com/in/en/manage/booking.html" style="display: inline-block; background: #991b1b; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 4px;">Check Air India →</a>
                 </div>
 
                 <div style="padding: 16px 24px; border-top: 1px solid #f1f5f9; text-align: center;">

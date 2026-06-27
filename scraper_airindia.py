@@ -10,11 +10,22 @@ Key design:
 """
 
 import os
+import ssl
 import time
 import logging
 import re
 import random
 from datetime import datetime
+
+# Module-level SSL fix — must run BEFORE any uc/urllib HTTPS calls,
+# and must persist across retries (uc.Chrome() can reset things).
+ssl._create_default_https_context = ssl._create_unverified_context
+try:
+    import certifi
+    os.environ['SSL_CERT_FILE'] = certifi.where()
+    os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
+except ImportError:
+    pass
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -28,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 AIRINDIA_HOME = "https://www.airindia.com/in/en.html"
 AIRINDIA_URL = "https://www.airindia.com/in/en/manage/booking.html"
-MAX_RETRIES = 3
+MAX_RETRIES = 1
 
 # Rotate User-Agent strings to avoid fingerprint-based blocking
 USER_AGENTS = [
@@ -64,6 +75,26 @@ def _fix_ssl():
         pass
 
 
+def _detect_chrome_version():
+    """Detect installed Chrome version for uc.Chrome(version_main=...)."""
+    import subprocess
+    candidates = [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                out = subprocess.check_output([path, '--version'], timeout=5).decode()
+                m = re.search(r'(\d+)\.', out)
+                if m:
+                    return int(m.group(1))
+            except Exception:
+                continue
+    return None
+
+
 def _create_stealth_driver():
     """Create a Chrome driver with undetected-chromedriver to bypass Imperva WAF."""
     _fix_ssl()
@@ -77,16 +108,27 @@ def _create_stealth_driver():
         options.add_argument('--no-first-run')
         options.add_argument('--no-default-browser-check')
         options.add_argument('--lang=en-US,en;q=0.9')
+        options.add_argument(f'--user-agent={random.choice(USER_AGENTS)}')
 
+        # Local: visible popup window (headless gets fingerprinted by Imperva)
+        # Cloud: must be headless (no display)
         if _is_cloud():
             options.add_argument('--headless=new')
+            options.add_argument('--disable-gpu')
             options.add_argument('--no-sandbox')
             options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--disable-gpu')
             logger.info("Cloud mode: headless + no-sandbox (undetected-chromedriver)")
+        else:
+            logger.info("Local mode: visible popup window (undetected-chromedriver)")
 
-        # use_subprocess=False avoids a second SSL call for the patcher
-        driver = uc.Chrome(options=options, use_subprocess=False)
+        # Match installed Chrome version → reduces fingerprint mismatch
+        chrome_version = _detect_chrome_version()
+        kwargs = {'options': options, 'use_subprocess': False}
+        if chrome_version:
+            kwargs['version_main'] = chrome_version
+            logger.info(f"Using Chrome version_main={chrome_version}")
+
+        driver = uc.Chrome(**kwargs)
         logger.info("Using undetected-chromedriver (Imperva bypass)")
         return driver
 
@@ -105,12 +147,15 @@ def _create_stealth_driver():
     options.add_experimental_option('excludeSwitches', ['enable-automation'])
     options.add_experimental_option('useAutomationExtension', False)
 
+    # Local: visible popup window; Cloud: headless
     if _is_cloud():
         options.add_argument('--headless=new')
+        options.add_argument('--disable-gpu')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--disable-gpu')
         options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
+    else:
+        logger.info("Local mode: visible popup window (selenium-stealth fallback)")
 
     try:
         from webdriver_manager.chrome import ChromeDriverManager
@@ -362,27 +407,19 @@ def _try_check_pnr(pnr, lastname, attempt=1):
     try:
         logger.info(f"[AI Attempt {attempt}/{MAX_RETRIES}] Checking PNR: {pnr}")
 
-        # Step 1: Warm up by visiting homepage first (mimics real user flow)
-        logger.info("Warming up: visiting Air India homepage first...")
-        driver.get(AIRINDIA_HOME)
-        _human_delay(3.0, 6.0)
-
-        # Check if homepage itself got blocked
-        home_text = driver.find_element(By.TAG_NAME, 'body').text.lower()
-        if 'access denied' in home_text or 'incapsula' in home_text:
-            raise Exception("Access Denied on homepage — IP may be temporarily blocked by Imperva WAF")
-
-        # Step 2: Navigate to manage booking (natural browsing path)
+        # Go directly to manage booking page (skip homepage — fewer requests = less fingerprinting)
         logger.info("Navigating to manage booking page...")
         driver.get(AIRINDIA_URL)
-        _human_delay(4.0, 8.0)
+        _human_delay(5.0, 9.0)  # longer delay to mimic real user
 
-        # Check if manage booking page got blocked
+        # Check if page got blocked
         page_text_check = driver.find_element(By.TAG_NAME, 'body').text.lower()
-        if 'access denied' in page_text_check or 'incapsula' in page_text_check:
+        if 'incapsula incident' in page_text_check or 'request unsuccessful' in page_text_check:
+            raise Exception("Imperva WAF blocked the page load — will retry with fresh browser")
+        if 'access denied' in page_text_check:
             raise Exception("Access Denied on manage booking — Imperva WAF blocked the request")
 
-        wait = WebDriverWait(driver, 20)
+        wait = WebDriverWait(driver, 40)
 
         # Dismiss any popups/cookie banners
         _dismiss_popups(driver, wait)
@@ -400,63 +437,129 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         os.makedirs(screenshots_dir, exist_ok=True)
         driver.save_screenshot(os.path.join(screenshots_dir, f'AI_{pnr}_preresult.png'))
 
-        # Dynamically wait for results or secondary modal
-        result_keywords = ['status', 'terminal', 'invalid', 'not found', 'cancelled', 'confirmed', 'itinerary', 'seat', 'search for a booking']
+        # Dynamically wait for results or secondary modal.
+        # NOTE: 'search for a booking' is the secondary modal header, NOT a result.
+        # The REAL result is either:
+        #   (a) an error banner above the modal ("1 ERROR\nThe payment for..."),
+        #   (b) booking details (itinerary, seat, etc.), or
+        #   (c) an Imperva block.
+        result_keywords = ['error', 'terminal', 'invalid', 'not found', 'cancelled',
+                           'confirmed', 'itinerary', 'seat', 'payment failed', 'payment',
+                           'booking cannot be found', 'search for a booking']
         start_time = time.time()
         page_text = ""
-        while time.time() - start_time < 15:
+        while time.time() - start_time < 45:
             try:
                 page_text = driver.find_element(By.TAG_NAME, 'body').text
                 text_lower = page_text.lower()
+                # Imperva block — bail out fast and let retry handle it
+                if 'incapsula incident' in text_lower or 'request unsuccessful' in text_lower:
+                    raise Exception("Imperva WAF blocked the API call after form submit")
                 if any(kw in text_lower for kw in result_keywords) and len(page_text) > 100:
-                    time.sleep(1) # Give it 1 extra second to fully render
+                    time.sleep(1.5)  # Give it time to fully render (error banner + modal)
                     page_text = driver.find_element(By.TAG_NAME, 'body').text
                     break
-            except Exception:
-                pass
+            except Exception as e:
+                if 'Imperva' in str(e):
+                    raise
             time.sleep(0.5)
 
         text_lower = page_text.lower()
-        
-        # Check if the secondary modal "Search for a booking" appeared
-        if 'search for a booking' in text_lower and 'continue' in text_lower:
-            logger.info("Secondary booking modal detected. Filling out again...")
-            try:
-                # Need to find the inputs in the new modal
-                _find_and_fill_form(driver, wait, pnr, lastname)
-                # Ensure we also try clicking the Continue button if Submit wasn't found
-                continue_btns = driver.find_elements(By.XPATH, '//button[contains(translate(text(),"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz"), "continue")]')
-                for btn in continue_btns:
-                    if btn.is_displayed():
-                        driver.execute_script("arguments[0].click();", btn)
-                        logger.info("Clicked Continue button on secondary modal")
-                        break
-                
-                # Wait again for final results
-                start_time = time.time()
-                while time.time() - start_time < 15:
-                    try:
-                        page_text = driver.find_element(By.TAG_NAME, 'body').text
-                        text_lower = page_text.lower()
-                        if any(kw in text_lower for kw in ['status', 'terminal', 'invalid', 'not found', 'cancelled', 'confirmed', 'itinerary', 'seat']) and 'continue' not in text_lower:
-                            time.sleep(1)
-                            page_text = driver.find_element(By.TAG_NAME, 'body').text
-                            break
-                    except Exception:
-                        pass
-                    time.sleep(0.5)
-            except Exception as e:
-                logger.warning(f"Failed to handle secondary modal: {e}")
 
-        # Save screenshot for debugging
+        # Save screenshot and raw text BEFORE modal handling (for debugging every attempt)
         screenshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'screenshots')
         os.makedirs(screenshots_dir, exist_ok=True)
         screenshot_path = os.path.join(screenshots_dir, f'AI_{pnr}_status.png')
         driver.save_screenshot(screenshot_path)
         logger.info(f"Screenshot saved: {screenshot_path}")
-
-        # Save raw text for debugging
         raw_dir = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(raw_dir, f'AI_{pnr}_raw.txt'), 'w') as f:
+            f.write(page_text)
+
+        # Check if the secondary modal "Search for a booking" appeared.
+        # Air India's flow: first form submit triggers an API call, which returns:
+        #   Case A: Error banner ("1 ERROR\n...") + "Search for a booking" modal below
+        #   Case B: Just the "Search for a booking" modal (soft block / no response)
+        #   Case C: Actual booking details (itinerary page)
+        if 'search for a booking' in text_lower and 'continue' in text_lower:
+            # Check if there's an error banner ABOVE the modal (Case A)
+            # Error banners contain text like "1 ERROR", "The payment for this booking...",
+            # "Your booking cannot be found", etc.
+            has_error_banner = (
+                'error' in text_lower and (
+                    'payment' in text_lower or
+                    'booking cannot be found' in text_lower or
+                    'cannot be found' in text_lower or
+                    'try again' in text_lower or
+                    'incomplete' in text_lower
+                )
+            )
+
+            if has_error_banner:
+                # Case A: We already have a real result in the error banner.
+                # Don't re-submit — just parse the error text we already have.
+                logger.info("Secondary modal with ERROR banner detected — parsing error result directly")
+                # page_text already contains the error banner text, parse it below.
+            else:
+                # Case B: Modal appeared with NO error banner.
+                # Air India silently rejected our submission (soft block).
+                # Try filling the modal form and clicking Continue.
+                logger.info("Secondary modal detected WITHOUT error banner — attempting modal form submit...")
+                try:
+                    _find_and_fill_form(driver, wait, pnr, lastname)
+                    # Click the Continue button specifically
+                    continue_btns = driver.find_elements(By.XPATH,
+                        '//button[contains(translate(text(),"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz"), "continue")]')
+                    for btn in continue_btns:
+                        if btn.is_displayed():
+                            driver.execute_script("arguments[0].click();", btn)
+                            logger.info("Clicked Continue button on secondary modal")
+                            break
+
+                    # Wait for results after modal submit
+                    start_time = time.time()
+                    while time.time() - start_time < 15:
+                        try:
+                            page_text = driver.find_element(By.TAG_NAME, 'body').text
+                            text_lower = page_text.lower()
+                            # Check for Imperva block
+                            if 'incapsula incident' in text_lower or 'request unsuccessful' in text_lower:
+                                raise Exception("Imperva WAF blocked after modal submit")
+                            # Check for error banner appearing
+                            if 'error' in text_lower and ('payment' in text_lower or 'cannot be found' in text_lower or 'incomplete' in text_lower):
+                                time.sleep(1)
+                                page_text = driver.find_element(By.TAG_NAME, 'body').text
+                                logger.info("Error banner appeared after modal submit")
+                                break
+                            # Check for real booking results
+                            if any(kw in text_lower for kw in ['itinerary', 'seat', 'confirmed', 'terminal', 'cancelled']):
+                                if 'search for a booking' not in text_lower:
+                                    time.sleep(1)
+                                    page_text = driver.find_element(By.TAG_NAME, 'body').text
+                                    logger.info("Booking details page loaded after modal submit")
+                                    break
+                        except Exception as e:
+                            if 'Imperva' in str(e) or 'WAF' in str(e):
+                                raise
+                        time.sleep(0.5)
+
+                    # Check if we're still stuck on the form (soft block persists)
+                    final_text = driver.find_element(By.TAG_NAME, 'body').text.lower()
+                    if 'search for a booking' in final_text and 'continue' in final_text:
+                        if 'error' not in final_text and 'payment' not in final_text and 'cannot be found' not in final_text:
+                            logger.warning("Still stuck on Search for a booking form — soft block by Air India")
+                            raise Exception("Air India soft-blocked the request (form re-displayed without result). Will retry.")
+
+                except Exception as e:
+                    if 'soft-blocked' in str(e).lower() or 'Imperva' in str(e) or 'WAF' in str(e):
+                        raise
+                    logger.warning(f"Failed to handle secondary modal: {e}")
+
+        # Re-read page_text after modal handling (may have changed)
+        page_text = driver.find_element(By.TAG_NAME, 'body').text
+
+        # Save final screenshot after modal handling
+        driver.save_screenshot(screenshot_path)
         with open(os.path.join(raw_dir, f'AI_{pnr}_raw.txt'), 'w') as f:
             f.write(page_text)
 
@@ -478,8 +581,19 @@ def _try_check_pnr(pnr, lastname, attempt=1):
             return kw in region
 
         # Status detection
-        if 'payment for this booking is incomplete' in text_lower or \
-           'payment is incomplete' in text_lower:
+        # Payment FAILED → treat as Cancelled (ticket was never issued)
+        if any(phrase in text_lower for phrase in [
+            'payment failed', 'payment unsuccessful', 'payment has failed',
+            'transaction failed', 'payment was not successful',
+            'booking has been cancelled due to payment',
+            'cancelled due to non-payment',
+        ]):
+            result['status'] = 'Cancelled'
+            result['detail'] = 'Payment failed — booking was not completed. Flight effectively cancelled.'
+
+        # Payment INCOMPLETE → still a chance to complete payment
+        elif 'payment for this booking is incomplete' in text_lower or \
+             'payment is incomplete' in text_lower:
             result['status'] = 'Payment Pending'
             result['detail'] = 'Payment incomplete — ticket not confirmed. Please complete payment on Air India.'
 
@@ -511,7 +625,8 @@ def _try_check_pnr(pnr, lastname, attempt=1):
             result['status'] = 'Confirmed'
             result['detail'] = extract_booking_detail(page_text)
 
-        elif 'completed' in text_lower or 'flown' in text_lower:
+        elif _keyword_near_pnr('completed', pnr, page_text, window=300) or \
+             _keyword_near_pnr('flown', pnr, page_text, window=300):
             result['status'] = 'Completed'
             result['detail'] = 'Flight has been completed.'
 
@@ -527,6 +642,11 @@ def _try_check_pnr(pnr, lastname, attempt=1):
             result['detail'] = extract_booking_detail(page_text)
 
         else:
+            # Check if we're still stuck on the "Search for a booking" form
+            # (means the submission never went through — soft block)
+            if 'search for a booking' in text_lower and 'booking reference' in text_lower and 'continue' in text_lower:
+                # Only the form fields are on screen — no real status was returned
+                raise Exception("Air India soft-blocked the request (form re-displayed without result). Will retry.")
             result['status'] = 'Checked'
             result['detail'] = page_text[:500] if page_text else 'Could not parse status'
 
@@ -548,10 +668,27 @@ def extract_flight_info_from_web(text: str, lastname: str) -> dict:
         'flight_number': '',
         'departure_time': '',
         'arrival_time': '',
-        'passenger_name': ''
+        'passenger_name': '',
+        'passenger_count': 1,
     }
 
     lines = text.split('\n')
+
+    # Passenger Count
+    # Air India puts "Passenger", "Passengers" and lists "Adult", "Child".
+    # Since names are listed with titles, we can count the occurrences of "Adult", "Child", "Infant" or titles.
+    # Or count the number of passengers listed under "Passengers".
+    # Let's count "Adult", "Child", "Infant" keywords.
+    pax_count = 0
+    pax_types = re.findall(r'\b(Adult|Child|Infant)\b', text, re.IGNORECASE)
+    if pax_types:
+        pax_count = len(pax_types)
+    else:
+        # Fallback: Count titles
+        pax_count = len(re.findall(r'\b(?:Mr\.?|Ms\.?|Mrs\.?|Dr\.?)\s+[A-Za-z]+', text, re.IGNORECASE))
+    
+    if pax_count > 0:
+        info['passenger_count'] = pax_count
 
     # Passenger name: look for lastname
     for line in lines:
@@ -679,6 +816,15 @@ def check_pnr_status(pnr, lastname):
                 time.sleep(wait_secs)
 
     logger.error(f"All {MAX_RETRIES} attempts failed for Air India PNR {pnr}: {last_error}")
+    # If all failures were WAF-related, return a friendlier "Check Failed" status
+    # so the user sees this is a temporary website issue, not a booking problem
+    err_str = str(last_error).lower()
+    if any(k in err_str for k in ['imperva', 'incapsula', 'access denied', 'blocked', 'waf', 'soft-block']):
+        return {
+            'status': 'Check Failed',
+            'detail': "Air India website is temporarily blocking automated checks (WAF). Will retry on next scheduled run.",
+            'raw_text': '',
+        }
     return {
         'status': 'Error',
         'detail': f"Failed after {MAX_RETRIES} attempts: {str(last_error)}",

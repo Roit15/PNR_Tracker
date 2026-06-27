@@ -10,11 +10,21 @@ Key design:
 """
 
 import os
+import ssl
 import time
 import logging
 import re
 import random
 from datetime import datetime
+
+# Module-level SSL fix — persistent across retries
+ssl._create_default_https_context = ssl._create_unverified_context
+try:
+    import certifi
+    os.environ['SSL_CERT_FILE'] = certifi.where()
+    os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
+except ImportError:
+    pass
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -60,12 +70,16 @@ def _create_stealth_driver():
         options.add_argument('--no-default-browser-check')
         options.add_argument('--lang=en-US,en;q=0.9')
 
+        # Local: visible popup window
+        # Cloud: must be headless (no display)
         if _is_cloud():
             options.add_argument('--headless=new')
+            options.add_argument('--disable-gpu')
             options.add_argument('--no-sandbox')
             options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--disable-gpu')
             logger.info("Cloud mode: headless + no-sandbox")
+        else:
+            logger.info("Local mode: visible popup window (undetected-chromedriver)")
 
         driver = uc.Chrome(options=options, use_subprocess=False)
         logger.info("Using undetected-chromedriver")
@@ -85,11 +99,15 @@ def _create_stealth_driver():
     options.add_experimental_option('excludeSwitches', ['enable-automation'])
     options.add_experimental_option('useAutomationExtension', False)
 
+    # Local: visible popup window
+    # Cloud: must be headless (no display)
     if _is_cloud():
         options.add_argument('--headless=new')
+        options.add_argument('--disable-gpu')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--disable-gpu')
+    else:
+        logger.info("Local mode: visible popup window (selenium fallback)")
 
     try:
         from webdriver_manager.chrome import ChromeDriverManager
@@ -354,13 +372,13 @@ def _try_check_pnr(pnr, firstname, lastname, attempt=1):
         logger.info(f"[VJ Attempt {attempt}/{MAX_RETRIES}] Checking PNR: {pnr}")
 
         driver.get(VIETJET_URL)
-        _human_delay(4.0, 7.0)
+        _human_delay(8.0, 12.0)
 
         page_text = driver.find_element(By.TAG_NAME, 'body').text.lower()
         if 'access denied' in page_text or 'blocked' in page_text:
             raise Exception("VietJet website blocked the request")
 
-        wait = WebDriverWait(driver, 25)
+        wait = WebDriverWait(driver, 45)
 
         # Accept cookie consent dialog first — it blocks form interaction
         _accept_cookies(driver, wait)
@@ -379,7 +397,7 @@ def _try_check_pnr(pnr, firstname, lastname, attempt=1):
                            'invalid', 'departure', 'arrival', 'passenger', 'itinerary', 'error']
         start_time = time.time()
         page_text = ""
-        while time.time() - start_time < 20:
+        while time.time() - start_time < 45:
             try:
                 page_text = driver.find_element(By.TAG_NAME, 'body').text
                 text_lower = page_text.lower()
@@ -486,7 +504,19 @@ def _extract_flight_info(text, firstname, lastname):
         'departure_time': '',
         'arrival_time': '',
         'passenger_name': '',
+        'passenger_count': 1,
     }
+
+    # Passenger Count
+    # VietJet typically says "1 passenger" or "2 passengers"
+    pax_match = re.search(r'(\d+)\s+passenger', text, re.IGNORECASE)
+    if pax_match:
+        info['passenger_count'] = int(pax_match.group(1))
+    else:
+        # Fallback: Count "Adults:" or titles in the Passenger information section
+        pax_count = len(re.findall(r'Adults?:', text, re.IGNORECASE))
+        if pax_count > 0:
+            info['passenger_count'] = pax_count
 
     # Flight number: VJ followed by digits
     fn_match = re.search(r'(VJ[\s-]?\d{1,4})', text, re.IGNORECASE)

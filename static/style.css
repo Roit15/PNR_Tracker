@@ -486,6 +486,16 @@ body {
     color: var(--text-muted);
     font-weight: 400;
 }
+.passenger-count-badge {
+    font-size: 10px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    vertical-align: middle;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
 
 .flight-num { font-weight: 600; color: var(--text-secondary); }
 
@@ -498,6 +508,59 @@ body {
     font-weight: 600;
     letter-spacing: 0.5px;
     border: 1px solid rgba(167, 139, 250, 0.15);
+}
+
+/* Round-trip indicator badges */
+.trip-badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    margin-left: 6px;
+    vertical-align: middle;
+    cursor: help;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+.trip-badge-sm {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+.trip-outbound {
+    background: rgba(34, 211, 238, 0.1);
+    color: var(--cyan);
+    border: 1px solid rgba(34, 211, 238, 0.2);
+}
+.trip-return {
+    background: rgba(249, 115, 22, 0.1);
+    color: var(--orange);
+    border: 1px solid rgba(249, 115, 22, 0.2);
+}
+
+/* Mobile trip link row */
+.fc-trip-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    margin: 0 0 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--radius-xs);
+    border: 1px dashed rgba(148, 163, 184, 0.15);
+}
+.trip-paired {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+    letter-spacing: 0.3px;
 }
 
 .date-cell { font-weight: 500; }
@@ -1037,4 +1100,437 @@ body {
     .tab svg { width: 16px; height: 16px; }
 
     .fc-meta { grid-template-columns: 1fr 1fr; }
+    .airline-selector { flex-wrap: wrap; }
+    .airline-chip { padding: 7px 12px; font-size: 12px; }
+}
+
+/* ==================
+   PAYMENT PENDING BADGE
+   ================== */
+.status-payment-pending {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--warning);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+/* ==================
+   SMOOTH TAB TRANSITIONS
+   ================== */
+.tab-content {
+    display: none;
+    opacity: 0;
+    transform: translateY(6px);
+}
+.tab-content.active {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+    animation: tabFadeIn 0.25s var(--ease);
+}
+@keyframes tabFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==================
+   SMOOTH COMPLETED TOGGLE
+   ================== */
+.completed-body {
+    overflow: hidden;
+    transition: max-height 0.4s var(--ease), opacity 0.3s var(--ease);
+    max-height: 0;
+    opacity: 0;
+}
+.completed-body.expanded {
+    max-height: 5000px;
+    opacity: 1;
+}
+
+/* ==================
+   FLASH PROGRESS BAR
+   ================== */
+.flash {
+    position: relative;
+    overflow: hidden;
+}
+.flash-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: currentColor;
+    opacity: 0.3;
+    animation: flashDrain 6s linear forwards;
+}
+@keyframes flashDrain {
+    from { width: 100%; }
+    to { width: 0%; }
+}
+.flash.flash-exit {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-bottom: 0;
+    transition: all 0.35s var(--ease);
+}
+
+/* ==================
+   LOADING — PLANE ANIMATION
+   ================== */
+.loading-plane {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 20px;
+}
+.loading-plane svg {
+    width: 32px;
+    height: 32px;
+    color: var(--accent);
+    animation: flyBounce 1.5s ease-in-out infinite;
+}
+.loading-plane::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.15;
+    animation: planeShadow 1.5s ease-in-out infinite;
+}
+@keyframes flyBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+@keyframes planeShadow {
+    0%, 100% { transform: translateX(-50%) scaleX(1); opacity: 0.15; }
+    50% { transform: translateX(-50%) scaleX(0.7); opacity: 0.08; }
+}
+.loading-timer {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ==================
+   SPINNING REFRESH BUTTON
+   ================== */
+.btn-icon-action.is-loading svg,
+.fc-btn.is-loading {
+    animation: spin 0.8s linear infinite;
+}
+.fc-btn.is-loading { pointer-events: none; opacity: 0.6; }
+
+/* ==================
+   DATE GROUP HEADERS
+   ================== */
+.date-group-header {
+    padding: 10px 14px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    background: rgba(0, 0, 0, 0.15);
+}
+.date-group-header .date-label-today {
+    color: var(--accent);
+}
+.date-group-header .date-label-tomorrow {
+    color: var(--success);
+}
+
+/* ==================
+   DETAIL ROW (EXPANDABLE)
+   ================== */
+.status-detail-row {
+    display: none;
+}
+.status-detail-row.show {
+    display: table-row;
+    animation: tabFadeIn 0.2s var(--ease);
+}
+.status-detail-row td {
+    padding: 6px 14px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    line-height: 1.5;
+}
+.status-detail-text {
+    max-width: 600px;
+    word-break: break-word;
+    white-space: normal;
+}
+
+/* Mobile detail */
+.fc-detail {
+    padding: 10px 16px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-top: 1px solid rgba(28, 40, 68, 0.4);
+    line-height: 1.5;
+    display: none;
+}
+.fc-detail.show { display: block; animation: tabFadeIn 0.2s var(--ease); }
+.fc-detail-toggle {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 0;
+    font-family: inherit;
+}
+.fc-detail-toggle:hover { text-decoration: underline; }
+
+/* Clickable row for detail */
+.booking-row.has-detail { cursor: pointer; }
+.booking-row.has-detail:hover { background: var(--bg-card-hover); }
+
+/* ==================
+   NEXT CHECK INDICATOR
+   ================== */
+.next-check-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-input);
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    font-weight: 500;
+}
+.next-check-badge .pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+/* ==================
+   CONFIRM MODAL
+   ================== */
+.confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 13, 26, 0.8);
+    backdrop-filter: blur(6px);
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.15s;
+}
+.confirm-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    max-width: 380px;
+    width: 90%;
+    text-align: center;
+    box-shadow: var(--shadow-lg);
+}
+.confirm-card h3 {
+    font-size: 16px;
+    margin-bottom: 8px;
+}
+.confirm-card p {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+.confirm-actions {
+    display: flex;
+    gap: 10px;
+}
+.confirm-actions .btn { flex: 1; padding: 10px; }
+.btn-ghost {
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 10px;
+    transition: all 0.15s;
+}
+.btn-ghost:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-hover);
+}
+
+/* ==================
+   MOBILE IMPROVEMENTS
+   ================== */
+@media (max-width: 768px) {
+    .fc-actions { gap: 0; }
+    .fc-btn { padding: 13px; font-size: 13px; min-height: 44px; }
+    .next-check-badge { display: none; }
+    .date-group-header { padding: 8px 12px 5px; font-size: 10px; }
+    .confirm-card { padding: 24px 20px; }
+}
+
+/* ==================
+   SORTABLE TABLE HEADERS
+   ================== */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s, background 0.15s;
+    white-space: nowrap;
+    border-radius: 6px;
+}
+.sortable:hover {
+    color: var(--text-primary);
+    background: rgba(99, 102, 241, 0.08);
+}
+.sort-icon {
+    display: none;
+}
+.sort-label {
+    display: inline-block;
+    margin-left: 4px;
+    font-size: 10px;
+    opacity: 0.5;
+    letter-spacing: 0;
+    transition: opacity 0.15s, color 0.15s;
+}
+.sortable:hover .sort-label {
+    opacity: 1;
+    color: var(--accent);
+}
+.sortable.sort-asc .sort-label,
+.sortable.sort-desc .sort-label {
+    opacity: 1;
+    color: var(--accent);
+    font-weight: 800;
+}
+
+/* ==================
+   STOP BUTTON & PROGRESS
+   ================== */
+.btn-stop {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    animation: stop-pulse 1.5s ease-in-out infinite;
+}
+.btn-stop:hover {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    transform: scale(1.03);
+}
+@keyframes stop-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+}
+
+.check-progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), #06b6d4);
+    transition: width 0.5s ease;
+    z-index: 9999;
+    box-shadow: 0 0 10px var(--accent);
+}
+
+/* AI Insights Section */
+.ai-insights-card {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.9));
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    box-shadow: 0 4px 20px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    margin-bottom: 24px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+}
+
+.ai-insights-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.1), transparent);
+    animation: ai-shimmer 3s infinite;
+}
+
+@keyframes ai-shimmer {
+    100% { left: 200%; }
+}
+
+.ai-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.ai-header h2 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+    background: linear-gradient(90deg, #c4b5fd, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 0.5px;
+}
+
+.ai-icon {
+    color: #a78bfa;
+    filter: drop-shadow(0 0 8px rgba(167, 139, 250, 0.6));
+}
+
+.ai-content p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #e2e8f0;
+}
+
+.ai-loading {
+    color: #94a3b8;
+    font-style: italic;
+    animation: pulse 2s infinite;
+}
+
+.ai-error {
+    color: #ef4444;
+}
+
+.ai-content strong {
+    color: #f8fafc;
+    font-weight: 600;
 }

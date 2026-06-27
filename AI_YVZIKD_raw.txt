@@ -1,38 +1,10 @@
 Opens up a Pop Up Dialog
-MANAGE BOOKING
-YOUR BOOKING REFERENCE NUMBER IS
-YVZIKD
-Resend Confirmation Email
-Services Summary
-ADD CONTACT INFORMATION
-To receive a Booking Confirmation mail please update your contact details and email id.
-Add Contact Details
-Your Flight
-HO CHI MINH CITY TO DELHI
-AI 2389
-Status: Confirmed
-CONFIRMED
-TUE, 28 APR 26
-20:55
-SGN
-5H 5Min
-Nonstop
-WED, 29 APR 26
-00:30
-DEL
-Terminal 2
-Terminal 3
-View Flight Details
-ECONOMY
-ECONOMY
-Show flight details
-   Your ticket has been booked by an external site or a travel agent. Please contact your booking agency for any modifications. Only tickets booked through the Air India website and mobile app can be modified here.
-Passenger
-Passengers
-Chestha Sachdeva
-Adult
-View Ticket Details
-Free Baggage Allowance
-Dangerous Goods Policy
+Search for a booking
+Identification type
+Booking reference
+Booking reference
+Booking reference is a 6 alpha-numeric code.
+Last name
+Continue
 Copyright © 2026 Air India Ltd.All rights reserved.
 Use of this website indicates your compliance with our Privacy Policy, Conditions of Carriage, Terms and Conditions. Cookie Settings

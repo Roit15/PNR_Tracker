@@ -1,0 +1,14 @@
+Opens up a Pop Up Dialog
+Search for a booking
+Identification type
+Booking reference
+Booking reference
+Booking reference is a 6 alpha-numeric code.
+Last name
+Continue
+Copyright © 2026 Air India Ltd.All rights reserved.
+Use of this website indicates your compliance with our Privacy Policy, Conditions of Carriage, Terms and Conditions. Cookie Settings
+Set your cookies
+We use cookies to ensure Air India websites function properly, to analyse traffic, and to create better user experiences, including delivering personalised content. By clicking “Accept All,” you agree to our use of cookies. To customise your cookie preferences, click "Manage Cookies" and select the categories you want to accept. For more information about how we use cookies, please view ourCookie Policy.
+Accept All
+Manage Cookies

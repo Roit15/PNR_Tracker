@@ -20,11 +20,31 @@ logger = logging.getLogger(__name__)
 ALERT_STATUSES = {'Cancelled', 'Rescheduled'}
 
 
+def _kill_zombie_chromes():
+    """Kill orphaned headless Chrome processes from previous failed scrapes."""
+    try:
+        import subprocess
+        # Kill only headless Chrome instances (won't touch user's regular Chrome)
+        subprocess.run(
+            ['pkill', '-f', 'Chrome.*--headless'],
+            capture_output=True, timeout=5
+        )
+        subprocess.run(
+            ['pkill', '-f', 'chromedriver'],
+            capture_output=True, timeout=5
+        )
+    except Exception as e:
+        logger.debug(f"Zombie cleanup skipped: {e}")
+
+
 def _check_all_pnrs():
     """
     Check status of all active PNRs. Returns list of results.
     Shared logic used by both hourly and scheduled checks.
     """
+    # Clean up any zombie Chrome processes from prior failed runs
+    _kill_zombie_chromes()
+
     deactivated = deactivate_past_bookings()
     if deactivated:
         logger.info(f"Deactivated {deactivated} past booking(s)")
@@ -142,10 +162,20 @@ def run_status_check():
     run_full_report()
 
 
+# Module-level singleton — prevents duplicate schedulers if setup is called twice
+_scheduler_instance = None
+
+
 def setup_scheduler(app=None):
     """
     Set up APScheduler with full status reports at 8 AM & 6 PM IST only.
+    Idempotent — calling twice returns the same instance (no duplicate jobs).
     """
+    global _scheduler_instance
+    if _scheduler_instance is not None and _scheduler_instance.running:
+        logger.warning("Scheduler already running — returning existing instance (no duplicate jobs)")
+        return _scheduler_instance
+
     from apscheduler.schedulers.background import BackgroundScheduler
     from apscheduler.triggers.cron import CronTrigger
     import pytz
@@ -172,6 +202,7 @@ def setup_scheduler(app=None):
             logger.error(f"Invalid time format '{time_str}': {e}")
 
     scheduler.start()
+    _scheduler_instance = scheduler
     logger.info("Scheduler started — checks at 8 AM & 6 PM IST only")
     return scheduler
 

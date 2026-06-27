@@ -37,7 +37,8 @@ def init_db():
             status_detail TEXT,
             created_at TEXT DEFAULT (datetime('now', 'localtime')),
             active INTEGER DEFAULT 1,
-            airline TEXT DEFAULT 'indigo'
+            airline TEXT DEFAULT 'indigo',
+            passenger_count INTEGER DEFAULT 1
         )
     ''')
 
@@ -60,23 +61,29 @@ def init_db():
     if 'passenger_firstname' not in columns:
         cursor.execute('ALTER TABLE bookings ADD COLUMN passenger_firstname TEXT')
 
+    if 'passenger_count' not in columns:
+        cursor.execute('ALTER TABLE bookings ADD COLUMN passenger_count INTEGER DEFAULT 1')
+        cursor.execute('UPDATE bookings SET passenger_count = 1 WHERE passenger_count IS NULL')
+
     conn.commit()
     conn.close()
 
 
 def add_booking(pnr, passenger_name, flight_number, route, flight_date,
                 departure_time=None, arrival_time=None, passenger_lastname=None,
-                airline='indigo', passenger_firstname=None):
+                airline='indigo', passenger_firstname=None, passenger_count=1):
     """Add a new booking to track."""
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Check if PNR already exists
-    cursor.execute('SELECT id FROM bookings WHERE pnr = ? AND active = 1', (pnr,))
+    # Check if this exact segment already exists (same PNR + route + date)
+    # This allows multiple segments per PNR (round trips) while preventing true duplicates
+    cursor.execute('SELECT id FROM bookings WHERE pnr = ? AND route = ? AND flight_date = ?',
+                   (pnr, route, flight_date))
     existing = cursor.fetchone()
     if existing:
         conn.close()
-        return None  # Already tracking this PNR
+        return None  # Already tracking this segment
 
     # Auto-extract last name from full name if not provided
     if not passenger_lastname and passenger_name:
@@ -85,10 +92,10 @@ def add_booking(pnr, passenger_name, flight_number, route, flight_date,
 
     cursor.execute('''
         INSERT INTO bookings (pnr, passenger_name, passenger_lastname, passenger_firstname,
-                            flight_number, route, flight_date, departure_time, arrival_time, airline)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            flight_number, route, flight_date, departure_time, arrival_time, airline, passenger_count)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (pnr, passenger_name, passenger_lastname, passenger_firstname,
-          flight_number, route, flight_date, departure_time, arrival_time, airline))
+          flight_number, route, flight_date, departure_time, arrival_time, airline, passenger_count))
     conn.commit()
     booking_id = cursor.lastrowid
     conn.close()
@@ -118,7 +125,7 @@ def get_completed_bookings():
     cursor.execute('''
         SELECT b.* FROM bookings b
         INNER JOIN (
-            SELECT pnr, MAX(id) as max_id FROM bookings WHERE active = 0 GROUP BY pnr
+            SELECT pnr, route, MAX(id) as max_id FROM bookings WHERE active = 0 GROUP BY pnr, route
         ) latest ON b.id = latest.max_id
         ORDER BY b.flight_date DESC
     ''')
@@ -153,17 +160,24 @@ def get_booking(booking_id):
     return booking
 
 
-def update_booking_status(pnr, status, status_detail=None):
+def update_booking_status(pnr, status, status_detail=None, passenger_count=None):
     """Update the status of a booking."""
     conn = get_connection()
     cursor = conn.cursor()
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    cursor.execute('''
-        UPDATE bookings
-        SET status = ?, status_detail = ?, last_checked = ?
-        WHERE pnr = ? AND active = 1
-    ''', (status, status_detail, now, pnr))
+    if passenger_count is not None:
+        cursor.execute('''
+            UPDATE bookings
+            SET status = ?, status_detail = ?, last_checked = ?, passenger_count = ?
+            WHERE pnr = ? AND active = 1
+        ''', (status, status_detail, now, passenger_count, pnr))
+    else:
+        cursor.execute('''
+            UPDATE bookings
+            SET status = ?, status_detail = ?, last_checked = ?
+            WHERE pnr = ? AND active = 1
+        ''', (status, status_detail, now, pnr))
     conn.commit()
     conn.close()
 

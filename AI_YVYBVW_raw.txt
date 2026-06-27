@@ -27,10 +27,35 @@ ECONOMY
 ECONOMY
 Show flight details
    Your ticket has been booked by an external site or a travel agent. Please contact your booking agency for any modifications. Only tickets booked through the Air India website and mobile app can be modified here.
+Would you like to upgrade your flight experience?
+The price for the upgrade is per passenger per segment
+Upgrade now
 Passenger
 Passengers
 Deepak Aggarwal
 Adult
+Additional Services
+PREFERRED SEAT
+Choose Your Preferred Seat
+Additional/Ancillary service on flights operated by partner carrier should be booked directly with the operating carrier customer support.
+From VND185,000
+Select Seat
+PRE PAID BAGGAGE
+Additional/Ancillary service on flights operated by partner carrier should be booked directly with the operating carrier customer support.
+From 
+VND1,161,000
+VND1,044,900-10%
+Add Extra Bags
+SPORTS EQUIPMENT
+Fly hassle-free with your sports equipment.
+Sporting equipment exceeding 300 cm/118 in or heavier than 32 kg/71 lb must be transported as cargo and cannot be accepted as standard baggage. For more information, refer to Terms and Conditions.
+From VND950,000
+Book Service
+SPECIAL ASSISTANCE
+Guests requiring wheelchairs or mobility assistance will be disembarked after other passengers. In times of demand, priority will be given to those who have confirmed their need of assistance with Air India (here).
+For any other special assistance regarding intellectual disability, oxygen support, stretchers, or visual/hearing impaired assistance with guide dogs, please contact customer support at the time of booking.
+Complimentary
+Request Service
 View Ticket Details
 Free Baggage Allowance
 Dangerous Goods Policy

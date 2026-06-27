@@ -10,8 +10,18 @@ Key design:
 """
 
 import os
+import ssl
 import time
 import logging
+
+# Module-level SSL fix — persistent across retries
+ssl._create_default_https_context = ssl._create_unverified_context
+try:
+    import certifi
+    os.environ['SSL_CERT_FILE'] = certifi.where()
+    os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
+except ImportError:
+    pass
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -41,16 +51,19 @@ def _create_stealth_driver():
     options.add_experimental_option('excludeSwitches', ['enable-automation'])
     options.add_experimental_option('useAutomationExtension', False)
 
-    # Cloud/Docker: Chrome needs these to run in container
+    # Local: visible popup window
+    # Cloud: must be headless (no display)
     if _is_cloud():
         options.add_argument('--headless=new')
+        options.add_argument('--disable-gpu')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--disable-gpu')
         options.add_argument('--disable-extensions')
         options.add_argument('--disable-software-rasterizer')
         options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
         logger.info("Cloud mode: headless + no-sandbox + stealth user-agent")
+    else:
+        logger.info("Local mode: visible popup window")
 
     # Use webdriver-manager to auto-install matching chromedriver
     try:
@@ -80,10 +93,10 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
 
         # Navigate to My Bookings page
         driver.get(INDIGO_URL)
-        time.sleep(8)
+        time.sleep(15)
 
         # Wait for PNR input to be visible
-        wait = WebDriverWait(driver, 20)
+        wait = WebDriverWait(driver, 40)
         pnr_input = wait.until(
             EC.visibility_of_element_located((By.NAME, 'pnr-booking-ref'))
         )
@@ -107,7 +120,7 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
         get_started.click()
 
         # Wait for results to load
-        time.sleep(8)
+        time.sleep(15)
 
         # Extract page content
         page_text = driver.find_element(By.TAG_NAME, 'body').text
@@ -171,7 +184,8 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
             result['status'] = 'Delayed'
             result['detail'] = extract_status_detail(page_text, 'delayed')
 
-        elif 'completed' in text_lower or 'flown' in text_lower:
+        elif _keyword_near_pnr('completed', pnr, page_text, window=200) or \
+             _keyword_near_pnr('flown', pnr, page_text, window=200):
             result['status'] = 'Completed'
             result['detail'] = 'Flight has been completed.'
 
@@ -201,19 +215,15 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
         driver.quit()
 
 
-def extract_flight_info_from_web(text: str, lastname: str) -> dict:
-    """Extract flight date, number, route, and full name from IndiGo's retrieved page text."""
+def extract_flight_info_from_web(text: str, lastname: str) -> list:
+    """Extract flight segments from IndiGo's retrieved page text.
+
+    Returns a list of segment dicts (usually 1, but 2 for round-trip PNRs).
+    Each dict has: flight_date, route, flight_number, departure_time, arrival_time, passenger_name.
+    """
     import re
     from datetime import datetime
-    info = {
-        'flight_date': '',
-        'route': '',
-        'flight_number': '',
-        'departure_time': '',
-        'arrival_time': '',
-        'passenger_name': ''
-    }
-    
+
     lines = text.split('\n')
     passenger_name = None
 
@@ -239,15 +249,86 @@ def extract_flight_info_from_web(text: str, lastname: str) -> dict:
                 m3 = re.search(r"(?i)\b([A-Za-z]+\s+(?:[A-Za-z]+\s+)?" + re.escape(lastname) + r")\b", line)
                 if m3:
                     val = m3.group(1).strip()
-                    if not val.lower().startswith("hello "): # Avoid matching "Hello First Last" again
+                    if not val.lower().startswith("hello "):
                         passenger_name = val
                         break
-    
-    if passenger_name:
-        info['passenger_name'] = passenger_name
 
-    # 1. Flight Date
-    # Looking for "27 Apr, 26" or "27 Apr 2026"
+    # Extractor: Passenger Count
+    # IndiGo often writes "2 Pax" or similar.
+    passenger_count = 1
+    for line in lines:
+        m_pax = re.search(r'(?i)(\d+)\s+Pax', line)
+        if m_pax:
+            passenger_count = int(m_pax.group(1))
+            break
+
+    # --- Detect round-trip: date range like "25 Jun, 26-02 Jul, 26" or "25 Jun, 26 - 02 Jul, 26" ---
+    date_range_match = re.search(
+        r'(\d{1,2})\s+([A-Za-z]{3}),?\s*(\d{2,4})\s*[-–]\s*(\d{1,2})\s+([A-Za-z]{3}),?\s*(\d{2,4})',
+        text
+    )
+
+    # --- Airport codes: standalone 3-letter codes on their own lines ---
+    codes = re.findall(r'^([A-Z]{3})$', text, re.MULTILINE)
+
+    # --- Flight numbers: all 6E XXXX ---
+    flight_numbers = re.findall(r'(6E\s*\d{3,4})', text)
+    flight_numbers = [fn.replace(' ', '') for fn in flight_numbers]
+
+    # --- Times: standalone HH:MM ---
+    times = re.findall(r'^(\d{2}:\d{2})$', text, re.MULTILINE)
+
+    def _parse_short_date(day, month, year_str):
+        """Parse a date like (25, 'Jun', '26') -> '2026-06-25'."""
+        yr = year_str
+        if len(yr) == 2:
+            yr = "20" + yr
+        try:
+            dt = datetime.strptime(f"{day} {month} {yr}", '%d %b %Y')
+            return dt.strftime('%Y-%m-%d')
+        except:
+            return ''
+
+    # --- ROUND TRIP: 4 codes (BOM CMB CMB BOM) + date range ---
+    if date_range_match and len(codes) >= 4:
+        date1 = _parse_short_date(date_range_match.group(1), date_range_match.group(2), date_range_match.group(3))
+        date2 = _parse_short_date(date_range_match.group(4), date_range_match.group(5), date_range_match.group(6))
+
+        route1 = f"{codes[0]}-{codes[1]}"
+        route2 = f"{codes[2]}-{codes[3]}"
+
+        seg1 = {
+            'flight_date': date1,
+            'route': route1,
+            'flight_number': flight_numbers[0] if len(flight_numbers) >= 1 else '',
+            'departure_time': times[0] if len(times) >= 1 else '',
+            'arrival_time': times[1] if len(times) >= 2 else '',
+            'passenger_name': passenger_name or '',
+            'passenger_count': passenger_count,
+        }
+        seg2 = {
+            'flight_date': date2,
+            'route': route2,
+            'flight_number': flight_numbers[1] if len(flight_numbers) >= 2 else '',
+            'departure_time': times[2] if len(times) >= 3 else '',
+            'arrival_time': times[3] if len(times) >= 4 else '',
+            'passenger_name': passenger_name or '',
+            'passenger_count': passenger_count,
+        }
+        return [seg1, seg2]
+
+    # --- SINGLE LEG (original behavior) ---
+    info = {
+        'flight_date': '',
+        'route': '',
+        'flight_number': '',
+        'departure_time': '',
+        'arrival_time': '',
+        'passenger_name': passenger_name or '',
+        'passenger_count': passenger_count,
+    }
+
+    # Flight Date
     date_match = re.search(r'(\d{1,2}\s+[A-Za-z]{3},?\s*\d{2,4})', text)
     if date_match:
         try:
@@ -261,25 +342,25 @@ def extract_flight_info_from_web(text: str, lastname: str) -> dict:
         except:
             pass
 
-    # 2. Flight Number
-    fn_match = re.search(r'(6E\s*\d{3,4})', text)
-    if fn_match:
-        info['flight_number'] = fn_match.group(1).replace(' ', '')
-        
-    # 3. Route
-    # Look for standalone 3-letter codes at start of lines (e.g. DPS \n DEL)
-    codes = re.findall(r'^([A-Z]{3})$', text, re.MULTILINE)
+    # Flight Number
+    if flight_numbers:
+        info['flight_number'] = flight_numbers[0]
+
+    # Route
     if len(codes) >= 2:
         info['route'] = f"{codes[0]}-{codes[1]}"
-        
-    # 4. Times
-    # Look for "19:10" at start of line
-    times = re.findall(r'^(\d{2}:\d{2})$', text, re.MULTILINE)
+        # Find first pair of distinct codes to avoid bugs like 'DPS-DPS'
+        for i in range(len(codes) - 1):
+            if codes[i] != codes[i+1]:
+                info['route'] = f"{codes[i]}-{codes[i+1]}"
+                break
+
+    # Times
     if times:
         info['departure_time'] = times[0]
         info['arrival_time'] = times[-1]
-        
-    return info
+
+    return [info]
 
 
 def extract_status_detail(text, keyword):

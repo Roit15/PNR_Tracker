@@ -1,12 +1,15 @@
 """
-PDF Parser for Indigo Booking Confirmation.
+PDF Parser for Indigo, Air India, and VietJet booking confirmations.
 Extracts PNR, passenger name, flight details from uploaded PDFs.
 
 NOTE: Indigo PDFs render each character 4x (e.g. "PPPPNNNNRRRR" = "PNR").
 We must deduplicate with deduplicate_text() before parsing.
+
+VietJet PDFs are image-based — text is extracted via OCR (easyocr).
 """
 
 import re
+import ssl
 import pdfplumber
 from datetime import datetime
 
@@ -42,31 +45,36 @@ def deduplicate_text(text):
 
 def detect_airline(text):
     """
-    Detect which airline a PDF belongs to based on content.
-    Returns 'airindia' or 'indigo'.
+    Detect which airline a PDF belongs to.
+    Returns 'airindia', 'vietjet', or 'indigo'.
     """
     text_lower = text.lower()
 
+    # VietJet indicators (check first — image OCR may garble 'vietjet' slightly)
+    vj_indicators = ['vietjet', 'vietjetair', 'vj ', 'vj5', 'vj6', 'vj7', 'vj8', 'vj9',
+                     'vietet', 'vieyjet', '1900 1886']
+    vj_score = sum(1 for ind in vj_indicators if ind in text_lower)
+    if re.search(r'VJ\s*\d{3,4}', text, re.IGNORECASE):
+        vj_score += 3
+
     # Air India indicators
-    ai_indicators = [
-        'air india', 'airindia.com', 'ai ', 'maharaja',
-        'tata group', 'star alliance',
-    ]
-    # IndiGo indicators
-    indigo_indicators = [
-        'indigo', 'goindigo', '6e ', '6e-', 'interglobe',
-    ]
-
+    ai_indicators = ['air india', 'airindia.com', 'maharaja', 'tata group', 'star alliance']
     ai_score = sum(1 for ind in ai_indicators if ind in text_lower)
-    indigo_score = sum(1 for ind in indigo_indicators if ind in text_lower)
-
-    # Also check flight number pattern
-    if re.search(r'AI[\s-]*\d{1,4}', text):
+    if re.search(r'\bAI[\s-]*\d{1,4}\b', text):
         ai_score += 3
+
+    # IndiGo indicators
+    indigo_indicators = ['indigo', 'goindigo', '6e ', '6e-', 'interglobe']
+    indigo_score = sum(1 for ind in indigo_indicators if ind in text_lower)
     if re.search(r'6E\s*\d{3,4}', text):
         indigo_score += 3
 
-    if ai_score > indigo_score:
+    best = max(vj_score, ai_score, indigo_score)
+    if best == 0:
+        return 'indigo'
+    if vj_score == best:
+        return 'vietjet'
+    if ai_score == best:
         return 'airindia'
     return 'indigo'
 
@@ -88,6 +96,8 @@ def parse_booking(pdf_path):
 
     if airline == 'airindia':
         return parse_airindia_booking(raw_text)
+    elif airline == 'vietjet':
+        return parse_vietjet_booking(raw_text)
     else:
         return parse_indigo_booking(raw_text)
 
@@ -147,6 +157,7 @@ def parse_airindia_booking(raw_text):
             'departure_time': seg.get('departure_time'),
             'arrival_time': seg.get('arrival_time'),
             'airline': 'airindia',
+            'passenger_count': extract_passenger_count(text),
         })
 
     return bookings
@@ -206,20 +217,70 @@ def parse_indigo_booking(raw_text):
             'departure_time': seg.get('departure_time'),
             'arrival_time': seg.get('arrival_time'),
             'airline': 'indigo',
+            'passenger_count': extract_passenger_count(text),
         })
 
     return bookings
 
 
 def extract_text(pdf_path):
-    """Extract all text from a PDF file."""
+    """Extract all text from a PDF file. Falls back to OCR for image-based PDFs."""
     full_text = ""
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
             page_text = page.extract_text()
             if page_text:
                 full_text += page_text + "\n"
-    return full_text.strip()
+    if full_text.strip():
+        return full_text.strip()
+
+    # Fallback: image-based PDF — extract embedded images and OCR them
+    return _ocr_pdf(pdf_path)
+
+
+def _ocr_pdf(pdf_path):
+    """Extract text from image-based PDF using easyocr via PyMuPDF."""
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        return ""
+
+    try:
+        # Fix macOS SSL so easyocr can download its models
+        ssl._create_default_https_context = ssl._create_unverified_context
+
+        import easyocr
+        reader = easyocr.Reader(['en'], verbose=False)
+    except Exception:
+        return ""
+
+    doc = fitz.open(pdf_path)
+    all_text = []
+
+    for page in doc:
+        images = page.get_images(full=True)
+        for img_info in images:
+            xref = img_info[0]
+            try:
+                base_image = doc.extract_image(xref)
+                img_bytes = base_image['image']
+                results = reader.readtext(img_bytes, detail=0)
+                all_text.extend(results)
+            except Exception:
+                continue
+
+        # If no embedded images, render the page as an image and OCR it
+        if not images:
+            try:
+                mat = fitz.Matrix(2, 2)  # 2x zoom for better OCR accuracy
+                pix = page.get_pixmap(matrix=mat)
+                img_bytes = pix.tobytes("png")
+                results = reader.readtext(img_bytes, detail=0)
+                all_text.extend(results)
+            except Exception:
+                continue
+
+    return "\n".join(all_text)
 
 
 def extract_pnr(text):
@@ -238,6 +299,31 @@ def extract_pnr(text):
         if match:
             return match.group(1).upper()
     return None
+
+
+def extract_passenger_count(text):
+    """
+    Extract the number of distinct passengers by counting titles.
+    """
+    pattern = r'\b(Mr|Mrs|Ms|Miss|Master)\.?\s+[A-Za-z]+'
+    
+    # Fallback for doubled chars (e.g. Firefox Print to PDF for Indigo)
+    doubled_pattern = r'\b(MMrr|MMrrss|MMss|MMiissss|MMaasstteerr)\.?\s+[A-Za-z]+'
+    
+    count = len(re.findall(pattern, text, re.IGNORECASE))
+    if count == 0:
+        count = len(re.findall(doubled_pattern, text, re.IGNORECASE))
+        
+    # Some PDFs might just have a total passenger count directly.
+    if count == 0:
+        pax_match = re.search(r'(\d+)\s+(?:Pax|passenger[s]?)', text, re.IGNORECASE)
+        if pax_match:
+            try:
+                return int(pax_match.group(1))
+            except ValueError:
+                pass
+                
+    return max(1, count)  # Default to at least 1
 
 
 def extract_passenger_name(text):
@@ -463,6 +549,171 @@ def extract_flight_segments_airindia(text):
             })
 
     return segments
+
+
+def parse_vietjet_booking(text):
+    """
+    Parse a VietJet booking confirmation PDF (image-based, OCR'd text).
+    Works line-by-line since OCR output is one token per line.
+    """
+    # Vietnamese city → IATA code map
+    CITY_IATA = {
+        'ha noi': 'HAN', 'hanoi': 'HAN', 'noi bai': 'HAN',
+        'ho chi minh': 'SGN', 'saigon': 'SGN', 'hcmc': 'SGN',
+        'da nang': 'DAD', 'danang': 'DAD',
+        'phu quoc': 'PQC',
+        'nha trang': 'CXR',
+        'da lat': 'DLI', 'dalat': 'DLI',
+        'hue': 'HUI',
+        'can tho': 'VCA',
+        'hai phong': 'HPH',
+        'buon ma thuot': 'BMV',
+        'quy nhon': 'UIH',
+        'vinh': 'VII',
+        'pleiku': 'PXU',
+        'con dao': 'VCS',
+        'phu cat': 'UIH',
+        'bangkok': 'BKK', 'suvarnabhumi': 'BKK',
+        'singapore': 'SIN',
+        'kuala lumpur': 'KUL',
+        'taipei': 'TPE',
+        'seoul': 'ICN',
+        'tokyo': 'NRT',
+        'osaka': 'KIX',
+        'hong kong': 'HKG',
+        'guangzhou': 'CAN',
+        'shanghai': 'PVG',
+        'beijing': 'PEK',
+    }
+
+    lines = [l.strip() for l in text.split('\n') if l.strip()]
+
+    # ── PNR: find "RESERVATION CODE" then scan next few lines for 6-char code ──
+    pnr = None
+    for i, line in enumerate(lines):
+        if 'reservation code' in line.lower():
+            for j in range(i + 1, min(i + 8, len(lines))):
+                # Must match raw (no uppercasing) — real PNR is all-caps, OCR noise is mixed case
+                candidate = re.sub(r'\s+', '', lines[j])
+                if re.fullmatch(r'[A-Z0-9]{6}', candidate):
+                    pnr = candidate
+                    break
+        if pnr:
+            break
+    # Fallback: any all-caps 6-char alphanumeric standalone line
+    if not pnr:
+        for line in lines:
+            m = re.fullmatch(r'[A-Z0-9]{6}', line.strip())
+            if m:
+                pnr = m.group(0)
+                break
+    if not pnr:
+        raise ValueError("Could not find Reservation Code in VietJet PDF.")
+
+    # ── Passenger name: "LASTNAME, FIRSTNAME" near Full name or passenger section ──
+    passenger_name = None
+    firstname = lastname = None
+    for i, line in enumerate(lines):
+        if 'full name' in line.lower() and i + 1 < len(lines):
+            raw = lines[i + 1]
+            m = re.match(r'([A-Z]+)[,\s]+([A-Z]+)', raw)
+            if m:
+                lastname, firstname = m.group(1).title(), m.group(2).title()
+                passenger_name = f"{firstname} {lastname}"
+                break
+        # Passenger table: "LASTNAME FIRSTNAME" followed by "VJxxx" on next line
+        m = re.match(r'^([A-Z]{2,})[,\s]+([A-Z]{2,})$', line)
+        if m and i + 1 < len(lines) and re.match(r'VJ\d+', lines[i + 1], re.IGNORECASE):
+            lastname, firstname = m.group(1).title(), m.group(2).title()
+            passenger_name = f"{firstname} {lastname}"
+            break
+
+    # ── Flight number: first VJxxx token ──
+    flight_number = None
+    for line in lines:
+        m = re.search(r'\b(VJ\d{3,4})\b', line, re.IGNORECASE)
+        if m:
+            flight_number = m.group(1).upper()
+            break
+
+    # ── Flight date: prefer date adjacent to flight number in flight section ──
+    # VietJet format: "Fri, 24/04/2026" or just "24/04/2026"
+    flight_date = None
+    in_flight_section = False
+    for line in lines:
+        if '3. flight' in line.lower() or 'flight information' in line.lower():
+            in_flight_section = True
+        if in_flight_section:
+            m = re.search(r'(\d{2})/(\d{2})/(\d{4})', line)
+            if m:
+                flight_date = f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+                break
+    # Fallback: last DD/MM/YYYY date in text (flight date is after booking date)
+    if not flight_date:
+        all_dates = re.findall(r'(\d{2})/(\d{2})/(\d{4})', text)
+        if all_dates:
+            d = all_dates[-1]
+            flight_date = f"{d[2]}-{d[1]}-{d[0]}"
+    if not flight_date:
+        raise ValueError("Could not extract flight date from VietJet PDF.")
+
+    # ── Times: find the two HH.MM / HH:MM in the flight table (after flight section) ──
+    dep_time = arr_time = None
+    in_flight_section = False
+    flight_times = []
+    for line in lines:
+        if '3. flight' in line.lower() or 'flight information' in line.lower():
+            in_flight_section = True
+        if in_flight_section:
+            m = re.fullmatch(r'(\d{2})[.:](\d{2})', line)
+            if m:
+                flight_times.append(f"{m.group(1)}:{m.group(2)}")
+    if flight_times:
+        dep_time = flight_times[0]
+        arr_time = flight_times[1] if len(flight_times) >= 2 else None
+
+    # ── Route: city names after Depart/Arrive columns in flight table ──
+    route = None
+    dep_city = arr_city = None
+    in_flight_section = False
+    found_flight_row = False
+    for i, line in enumerate(lines):
+        if '3. flight' in line.lower() or 'flight information' in line.lower():
+            in_flight_section = True
+        if in_flight_section and re.match(r'VJ\d+', line, re.IGNORECASE):
+            found_flight_row = True
+        if found_flight_row:
+            ll = line.lower().strip()
+            for city, iata in CITY_IATA.items():
+                if city in ll:
+                    if dep_city is None:
+                        dep_city = iata
+                    elif arr_city is None and iata != dep_city:
+                        arr_city = iata
+                        break
+        if dep_city and arr_city:
+            break
+    if dep_city and arr_city:
+        route = f"{dep_city}-{arr_city}"
+    else:
+        # IATA code fallback
+        m = re.search(r'([A-Z]{3})\s*[-–→]\s*([A-Z]{3})', text)
+        if m:
+            route = f"{m.group(1)}-{m.group(2)}"
+
+    return [{
+        'pnr': pnr,
+        'passenger_name': passenger_name or 'Unknown',
+        'passenger_firstname': firstname,
+        'passenger_lastname': lastname,
+        'flight_number': flight_number or 'Unknown',
+        'route': route or 'Unknown',
+        'flight_date': flight_date,
+        'departure_time': dep_time,
+        'arrival_time': arr_time,
+        'airline': 'vietjet',
+        'passenger_count': extract_passenger_count(text),
+    }]
 
 
 if __name__ == '__main__':
