@@ -38,11 +38,13 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         wait = WebDriverWait(driver, 40)
 
         # Wait for the page to load
-        time.sleep(10)
+        time.sleep(8)
 
-        # Dismiss cookie consent if present
+        # Dismiss cookie consent — Etihad uses a "Close" button on their cookie banner
         try:
             cookie_selectors = [
+                "//button[normalize-space(text())='Close']",
+                "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'close')]",
                 "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accept')]",
                 "//button[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'agree')]",
                 "//button[contains(@class, 'cookie')]",
@@ -53,7 +55,8 @@ def _try_check_pnr(pnr, lastname, attempt=1):
                     btns = driver.find_elements(By.XPATH, selector)
                     for btn in btns:
                         if btn.is_displayed():
-                            btn.click()
+                            driver.execute_script("arguments[0].click();", btn)
+                            logger.info(f"Clicked cookie button: {selector}")
                             time.sleep(1)
                             break
                 except Exception:
@@ -145,26 +148,53 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         if submit_btn:
             driver.execute_script("arguments[0].scrollIntoView(true);", submit_btn)
             time.sleep(0.5)
-            submit_btn.click()
+            driver.execute_script("arguments[0].click();", submit_btn)
         else:
             # Try pressing Enter
             from selenium.webdriver.common.keys import Keys
             (lname_input or pnr_input).send_keys(Keys.RETURN)
 
-        # Wait for results to load
-        result_keywords = ['flight', 'confirmed', 'cancelled', 'not found', 'invalid',
-                          'error', 'departure', 'itinerary', 'passenger', 'booking',
-                          'journey', 'trip', 'sorry', 'unable']
+        # Wait for results — Etihad is a heavy SPA, skeleton loads first then real content
+        # We need to wait for ACTUAL flight data (airport codes, times, dates) not just nav text
+        logger.info("Waiting for Etihad booking results to load...")
+        flight_data_keywords = ['departure', 'arrival', 'terminal', 'economy', 'business',
+                                'guest', 'abu dhabi', 'passenger', 'seat', 'baggage',
+                                'not found', 'invalid', 'sorry', 'unable', 'error',
+                                'cancelled', 'EY']
         start_time = time.time()
         page_text = ""
-        while time.time() - start_time < 40:
+        prev_len = 0
+        stable_count = 0
+        while time.time() - start_time < 60:
             try:
                 page_text = driver.find_element(By.TAG_NAME, 'body').text
                 text_lower = page_text.lower()
-                if any(kw in text_lower for kw in result_keywords) and len(page_text) > 300:
+
+                # Check if actual flight data keywords are present
+                has_flight_data = any(kw.lower() in text_lower for kw in flight_data_keywords)
+                # Check for 3-letter airport codes (e.g., DEL, AUH, BOM)
+                has_airport_codes = bool(re.findall(r'\b[A-Z]{3}\b', page_text))
+                # Check for time patterns (e.g., 14:30)
+                has_times = bool(re.findall(r'\d{2}:\d{2}', page_text))
+
+                if (has_flight_data and (has_airport_codes or has_times) and
+                        len(page_text) > 500):
+                    # Content looks real — wait a bit more to ensure it's stable
                     time.sleep(3)
                     page_text = driver.find_element(By.TAG_NAME, 'body').text
+                    logger.info(f"Got flight data after {time.time() - start_time:.0f}s ({len(page_text)} chars)")
                     break
+
+                # Also check if content has stabilized (SPA finished rendering)
+                if len(page_text) == prev_len and len(page_text) > 500:
+                    stable_count += 1
+                    if stable_count >= 4:  # Stable for 4 seconds
+                        logger.info(f"Page content stabilized after {time.time() - start_time:.0f}s")
+                        break
+                else:
+                    stable_count = 0
+                prev_len = len(page_text)
+
             except Exception:
                 pass
             time.sleep(1)
