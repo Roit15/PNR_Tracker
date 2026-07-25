@@ -14,7 +14,7 @@ def check_pnr_by_airline(pnr, lastname, airline='indigo', firstname=''):
     Args:
         pnr: booking reference
         lastname: passenger's last name
-        airline: 'indigo', 'airindia', or 'vietjet'
+        airline: 'indigo', 'airindia', 'vietjet', 'singaporeair', 'akasaair', or 'etihad'
         firstname: passenger's first name (required for VietJet)
 
     Returns:
@@ -31,6 +31,21 @@ def check_pnr_by_airline(pnr, lastname, airline='indigo', firstname=''):
         from scraper_vietjet import check_pnr_status
         logger.info(f"Routing PNR {pnr} to VietJet scraper (firstname={firstname})")
         return check_pnr_status(pnr, lastname, firstname)
+
+    elif airline == 'singaporeair':
+        from scraper_singaporeair import check_pnr_status
+        logger.info(f"Routing PNR {pnr} to Singapore Airlines scraper")
+        return check_pnr_status(pnr, lastname)
+
+    elif airline == 'akasaair':
+        from scraper_akasaair import check_pnr_status
+        logger.info(f"Routing PNR {pnr} to Akasa Air scraper")
+        return check_pnr_status(pnr, lastname)
+
+    elif airline == 'etihad':
+        from scraper_etihad import check_pnr_status
+        logger.info(f"Routing PNR {pnr} to Etihad Airways scraper")
+        return check_pnr_status(pnr, lastname)
 
     else:
         # Default: IndiGo

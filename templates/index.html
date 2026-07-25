@@ -126,6 +126,18 @@
                             <input type="radio" name="airline" value="vietjet">
                             <span class="airline-chip airline-vietjet">VietJet <span class="airline-code">VJ</span></span>
                         </label>
+                        <label class="airline-option">
+                            <input type="radio" name="airline" value="singaporeair">
+                            <span class="airline-chip airline-singaporeair">Singapore Airlines <span class="airline-code">SQ</span></span>
+                        </label>
+                        <label class="airline-option">
+                            <input type="radio" name="airline" value="akasaair">
+                            <span class="airline-chip airline-akasaair">Akasa Air <span class="airline-code">QP</span></span>
+                        </label>
+                        <label class="airline-option">
+                            <input type="radio" name="airline" value="etihad">
+                            <span class="airline-chip airline-etihad">Etihad <span class="airline-code">EY</span></span>
+                        </label>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
@@ -188,7 +200,7 @@
                         <tr class="booking-row {{ 'has-detail' if booking.status_detail }}" data-detail-id="detail-{{ booking.id }}" onclick="toggleDetail('detail-{{ booking.id }}')">
                             <td data-sort-key="{{ booking.pnr }}">
                                 <div class="pnr-cell">
-                                    <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else 'badge-indigo') }}">{{ 'AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else '6E') }}</span>
+                                    <span class="airline-badge-sm {{ 'badge-akasaair' if booking.airline == 'akasaair' else ('badge-etihad' if booking.airline == 'etihad' else ('badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else ('badge-singaporeair' if booking.airline == 'singaporeair' else 'badge-indigo')))) }}">{{ 'QP' if booking.airline == 'akasaair' else ('EY' if booking.airline == 'etihad' else ('AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else ('SQ' if booking.airline == 'singaporeair' else '6E')))) }}</span>
                                     <span class="pnr-code">{{ booking.pnr }}</span>
                                     <span class="passenger-name">{{ booking.passenger_name }}</span>
                                     {% if booking.passenger_count %}
@@ -246,7 +258,7 @@
                 <div class="flight-card status-border-{{ booking.status|lower|replace(' ', '-') }}">
                     <div class="flight-card-top">
                         <div class="fc-pnr">
-                            <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else 'badge-indigo') }}">{{ 'AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else '6E') }}</span>
+                            <span class="airline-badge-sm {{ 'badge-akasaair' if booking.airline == 'akasaair' else ('badge-etihad' if booking.airline == 'etihad' else ('badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else ('badge-singaporeair' if booking.airline == 'singaporeair' else 'badge-indigo')))) }}">{{ 'QP' if booking.airline == 'akasaair' else ('EY' if booking.airline == 'etihad' else ('AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else ('SQ' if booking.airline == 'singaporeair' else '6E')))) }}</span>
                             <span class="pnr-code">{{ booking.pnr }}</span>
                             <span class="passenger-name">{{ booking.passenger_name }}</span>
                             {% if booking.passenger_count %}
@@ -362,7 +374,7 @@
                             <tr class="booking-row completed-row">
                                 <td>
                                     <div class="pnr-cell">
-                                        <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else 'badge-indigo') }}">{{ 'AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else '6E') }}</span>
+                                        <span class="airline-badge-sm {{ 'badge-akasaair' if booking.airline == 'akasaair' else ('badge-etihad' if booking.airline == 'etihad' else ('badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else ('badge-singaporeair' if booking.airline == 'singaporeair' else 'badge-indigo')))) }}">{{ 'QP' if booking.airline == 'akasaair' else ('EY' if booking.airline == 'etihad' else ('AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else ('SQ' if booking.airline == 'singaporeair' else '6E')))) }}</span>
                                         <span class="pnr-code">{{ booking.pnr }}</span>
                                         <span class="passenger-name">{{ booking.passenger_name }}</span>
                                         {% if booking.passenger_count %}
@@ -397,7 +409,7 @@
                     <div class="flight-card completed-card">
                         <div class="flight-card-top">
                             <div class="fc-pnr">
-                                <span class="airline-badge-sm {{ 'badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else 'badge-indigo') }}">{{ 'AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else '6E') }}</span>
+                                <span class="airline-badge-sm {{ 'badge-akasaair' if booking.airline == 'akasaair' else ('badge-etihad' if booking.airline == 'etihad' else ('badge-airindia' if booking.airline == 'airindia' else ('badge-vietjet' if booking.airline == 'vietjet' else ('badge-singaporeair' if booking.airline == 'singaporeair' else 'badge-indigo')))) }}">{{ 'QP' if booking.airline == 'akasaair' else ('EY' if booking.airline == 'etihad' else ('AI' if booking.airline == 'airindia' else ('VJ' if booking.airline == 'vietjet' else ('SQ' if booking.airline == 'singaporeair' else '6E')))) }}</span>
                                 <span class="pnr-code">{{ booking.pnr }}</span>
                                 <span class="passenger-name">{{ booking.passenger_name }}</span>
                                 {% if booking.passenger_count %}

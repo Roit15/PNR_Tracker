@@ -699,6 +699,15 @@ body {
     background: rgba(255, 140, 0, 0.2);
     opacity: 1;
 }
+.airline-option input[type="radio"]:checked + .airline-singaporeair {
+    background: rgba(253, 185, 39, 0.1);
+    border-color: #fdb927;
+    color: #fdb927;
+}
+.airline-option input[type="radio"]:checked + .airline-singaporeair .airline-code {
+    background: rgba(253, 185, 39, 0.2);
+    opacity: 1;
+}
 
 /* Small badges next to PNR */
 .airline-badge-sm {
@@ -726,6 +735,39 @@ body {
     background: rgba(255, 140, 0, 0.12);
     color: #fb923c;
     border: 1px solid rgba(255, 140, 0, 0.25);
+}
+.badge-singaporeair {
+    background: rgba(253, 185, 39, 0.12);
+    color: #fdb927;
+    border: 1px solid rgba(253, 185, 39, 0.25);
+}
+.airline-option input[type="radio"]:checked + .airline-akasaair {
+    background: rgba(92, 29, 143, 0.12);
+    border-color: #7c3aed;
+    color: #a78bfa;
+}
+.airline-option input[type="radio"]:checked + .airline-akasaair .airline-code {
+    background: rgba(92, 29, 143, 0.2);
+    opacity: 1;
+}
+.airline-option input[type="radio"]:checked + .airline-etihad {
+    background: rgba(189, 139, 19, 0.1);
+    border-color: #bd8b13;
+    color: #d4a017;
+}
+.airline-option input[type="radio"]:checked + .airline-etihad .airline-code {
+    background: rgba(189, 139, 19, 0.2);
+    opacity: 1;
+}
+.badge-akasaair {
+    background: rgba(92, 29, 143, 0.15);
+    color: #a78bfa;
+    border: 1px solid rgba(92, 29, 143, 0.25);
+}
+.badge-etihad {
+    background: rgba(189, 139, 19, 0.12);
+    color: #d4a017;
+    border: 1px solid rgba(189, 139, 19, 0.25);
 }
 
 /* ==================

@@ -267,7 +267,7 @@ def upload():
 
 
 def _airline_label(airline):
-    return {'airindia': 'Air India', 'vietjet': 'VietJet Air'}.get(airline, 'IndiGo')
+    return {'airindia': 'Air India', 'vietjet': 'VietJet Air', 'singaporeair': 'Singapore Airlines', 'akasaair': 'Akasa Air', 'etihad': 'Etihad Airways'}.get(airline, 'IndiGo')
 
 
 @app.route('/add_manual', methods=['POST'])
