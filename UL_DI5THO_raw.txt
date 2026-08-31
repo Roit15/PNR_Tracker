@@ -1,0 +1,22 @@
+Skip to the main content
+Opens up a Pop Up Dialog
+Error:
+1 error
+Your booking cannot be found. Please check the information you have submitted and try again.
+Search for a booking
+Identification type
+Booking reference
+Booking reference
+Booking reference is a 6 alpha-numeric code.
+Last name
+Continue
+Secured payment
+Credit card fees may occur.
+Follow us
+Opens in new window
+Opens in new window
+Opens in new window
+Opens in new window
+Opens in new window
+Copyright information
+Loading complete

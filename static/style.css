@@ -1,38 +1,51 @@
 /* =============================================
-   PNR Tracker — Premium Dark UI
+   Price Error — Professional Dark UI
    ============================================= */
 
+html {
+    color-scheme: dark;
+}
+
 :root {
-    --bg-base: #080d1a;
-    --bg-surface: #0f1629;
-    --bg-card: #141c30;
-    --bg-card-hover: #1a2540;
-    --bg-input: #0c1221;
-    --border: #1c2844;
-    --border-hover: #2a3f6a;
-    --border-focus: #3b82f6;
+    /* Soft Slate Backgrounds */
+    --bg-base: #0f172a;
+    --bg-surface: #1e293b;
+    --bg-card: #1e293b;
+    --bg-card-hover: #334155;
+    --bg-input: #0f172a;
+    
+    /* Softer Borders */
+    --border: rgba(255, 255, 255, 0.08);
+    --border-hover: rgba(255, 255, 255, 0.15);
+    --border-focus: #6366f1;
 
-    --text-primary: #edf2f7;
+    /* Off-white text to reduce glare */
+    --text-primary: #e4e4e7;
     --text-secondary: #94a3b8;
-    --text-muted: #5a6a85;
+    --text-muted: #64748b;
 
-    --accent: #3b82f6;
-    --accent-hover: #2563eb;
-    --accent-soft: rgba(59, 130, 246, 0.12);
-    --accent-glow: rgba(59, 130, 246, 0.08);
+    /* Calming Indigo Accent */
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
+    --accent-soft: rgba(99, 102, 241, 0.15);
+    --accent-glow: rgba(99, 102, 241, 0.05);
 
-    --success: #22c55e;
+    /* Status Colors - softer */
+    --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
     --orange: #f97316;
-    --purple: #a78bfa;
-    --cyan: #22d3ee;
+    --purple: #8b5cf6;
+    --cyan: #06b6d4;
 
     --radius: 12px;
     --radius-sm: 8px;
     --radius-xs: 6px;
-    --shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
-    --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.45);
+    
+    /* Soft drop shadows instead of neon glows */
+    --shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.3);
+    
     --ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -51,18 +64,30 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+/* Logo Mark */
+.logo-mark {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--accent), #818cf8);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
 /* ==================
    HEADER
    ================== */
 .header {
-    background: linear-gradient(135deg, rgba(15, 22, 41, 0.95), rgba(20, 28, 48, 0.95));
+    background: var(--bg-surface);
     border-bottom: 1px solid var(--border);
     padding: 16px 0;
     position: sticky;
     top: 0;
     z-index: 100;
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
 }
 
 .header::after {
@@ -91,16 +116,11 @@ body {
     gap: 12px;
 }
 
-.logo-mark {
+.brand-logo {
     width: 40px;
     height: 40px;
-    background: linear-gradient(135deg, var(--accent), #6366f1);
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.35);
+    object-fit: contain;
+    border-radius: 8px;
 }
 
 .logo h1 {
@@ -116,6 +136,19 @@ body {
     font-weight: 400;
     margin-top: 1px;
     letter-spacing: 0.2px;
+}
+
+.version-badge {
+    display: inline-block;
+    font-size: 9px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    margin-top: 3px;
+    border: 1px solid rgba(99, 102, 241, 0.2);
 }
 
 .header-actions { display: flex; align-items: center; gap: 8px; }
@@ -141,25 +174,23 @@ body {
 }
 
 .btn-glow {
-    background: var(--accent-soft);
+    background: transparent;
     color: var(--accent);
-    border: 1px solid rgba(59, 130, 246, 0.25);
+    border: 1px solid rgba(99, 102, 241, 0.25);
 }
 .btn-glow:hover {
-    background: rgba(59, 130, 246, 0.2);
+    background: rgba(37, 99, 235, 0.05);
     border-color: var(--accent);
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
 }
 .btn-glow svg { flex-shrink: 0; }
 
 .btn-primary {
-    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+    background: var(--accent);
     color: #fff;
-    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.3);
 }
 .btn-primary:hover:not(:disabled) {
+    background: var(--accent-hover);
     transform: translateY(-1px);
-    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
 }
 .btn-primary:active:not(:disabled) { transform: translateY(0); }
 .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
@@ -209,11 +240,13 @@ body {
 }
 
 .card {
-    background: var(--bg-card);
+    background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 24px;
     box-shadow: var(--shadow);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
 .card-header {
@@ -242,7 +275,7 @@ body {
     font-size: 13px;
     font-weight: 700;
     padding: 0 10px;
-    border: 1px solid rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(99, 102, 241, 0.2);
 }
 
 /* ==================
@@ -277,9 +310,9 @@ body {
 }
 .tab:hover { color: var(--text-secondary); }
 .tab.active {
-    background: var(--bg-card-hover);
-    color: var(--text-primary);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    background: var(--bg-card);
+    color: var(--accent);
+    border-bottom: 2px solid var(--accent);
 }
 .tab svg { flex-shrink: 0; }
 
@@ -301,8 +334,8 @@ body {
 .upload-zone:hover,
 .upload-zone.drag-over {
     border-color: var(--accent);
-    background: var(--accent-glow);
-    box-shadow: inset 0 0 30px rgba(59, 130, 246, 0.04);
+    border-radius: var(--radius);
+    box-shadow: inset 0 0 30px rgba(99, 102, 241, 0.04);
 }
 
 .file-input { display: none; }
@@ -403,7 +436,7 @@ body {
 .form-group input:focus {
     outline: none;
     border-color: var(--border-focus);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 .form-group input::placeholder { color: var(--text-muted); }
 .form-group input[name="pnr"] { text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
@@ -424,7 +457,7 @@ body {
 }
 .loading-card {
     background: var(--bg-card);
-    border: 1px solid var(--border);
+    border: 1px solid rgba(99, 102, 241, 0.2);
     border-radius: var(--radius);
     padding: 40px 48px;
     text-align: center;
@@ -464,7 +497,7 @@ body {
 
 .bookings-table td {
     padding: 12px 14px;
-    border-bottom: 1px solid rgba(28, 40, 68, 0.5);
+    border-bottom: 1px solid rgba(20, 42, 30, 0.5);
     font-size: 13px;
     white-space: nowrap;
     vertical-align: middle;
@@ -473,7 +506,7 @@ body {
 .booking-row { transition: background 0.15s var(--ease); }
 .booking-row:hover { background: var(--bg-card-hover); }
 
-.pnr-cell { display: flex; flex-direction: column; gap: 2px; }
+.pnr-cell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pnr-code {
     font-weight: 700;
     font-size: 14px;
@@ -485,6 +518,9 @@ body {
     font-size: 11px;
     color: var(--text-muted);
     font-weight: 400;
+    width: 100%;
+    padding-left: 33px;
+    margin-top: -2px;
 }
 .passenger-count-badge {
     font-size: 10px;
@@ -537,7 +573,7 @@ body {
 .trip-outbound {
     background: rgba(34, 211, 238, 0.1);
     color: var(--cyan);
-    border: 1px solid rgba(34, 211, 238, 0.2);
+    border: 1px solid rgba(34, 211, 238, 0.1);
 }
 .trip-return {
     background: rgba(249, 115, 22, 0.1);
@@ -596,186 +632,269 @@ body {
 .status-confirmed {
     background: rgba(34, 197, 94, 0.12);
     color: var(--success);
-    border: 1px solid rgba(34, 197, 94, 0.25);
+    border: 1px solid rgba(34, 197, 94, 0.15);
 }
 .status-check-in-open {
     background: rgba(34, 211, 238, 0.1);
     color: var(--cyan);
-    border: 1px solid rgba(34, 211, 238, 0.2);
+    border: 1px solid rgba(34, 211, 238, 0.1);
 }
 .status-delayed {
     background: rgba(245, 158, 11, 0.12);
     color: var(--warning);
-    border: 1px solid rgba(245, 158, 11, 0.25);
+    border: 1px solid rgba(245, 158, 11, 0.15);
 }
 .status-rescheduled {
     background: rgba(249, 115, 22, 0.12);
     color: var(--orange);
-    border: 1px solid rgba(249, 115, 22, 0.25);
+    border: 1px solid rgba(249, 115, 22, 0.15);
 }
 .status-cancelled {
     background: rgba(239, 68, 68, 0.12);
     color: var(--danger);
-    border: 1px solid rgba(239, 68, 68, 0.25);
+    border: 1px solid rgba(239, 68, 68, 0.15);
 }
 .status-not-found,
 .status-error {
     background: rgba(90, 106, 133, 0.12);
     color: var(--text-muted);
-    border: 1px solid rgba(90, 106, 133, 0.25);
+    border: 1px solid rgba(90, 106, 133, 0.15);
 }
 .status-completed {
     background: rgba(167, 139, 250, 0.1);
     color: var(--purple);
-    border: 1px solid rgba(167, 139, 250, 0.2);
+    border: 1px solid rgba(167, 139, 250, 0.1);
 }
 .status-checked,
 .status-pending-check {
     background: rgba(148, 163, 184, 0.08);
     color: var(--text-secondary);
-    border: 1px solid rgba(148, 163, 184, 0.15);
+    border: 1px solid rgba(148, 163, 184, 0.1);
 }
 
 /* ==================
-   AIRLINE SELECTOR & BADGES
+   AIRLINE GRID SELECTOR (new card-based layout)
    ================== */
-.airline-selector {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 16px;
-}
-.airline-option {
-    cursor: pointer;
-}
-.airline-option input[type="radio"] {
-    display: none;
-}
-.airline-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    border-radius: var(--radius-sm);
-    font-size: 13px;
-    font-weight: 600;
-    font-family: inherit;
-    border: 1.5px solid var(--border);
-    background: var(--bg-input);
-    color: var(--text-muted);
-    transition: all 0.2s var(--ease);
-}
-.airline-code {
+.section-label {
     font-size: 11px;
-    font-weight: 700;
-    opacity: 0.6;
-    padding: 1px 5px;
-    border-radius: 3px;
-    background: rgba(255,255,255,0.05);
-}
-.airline-option input[type="radio"]:checked + .airline-indigo {
-    background: rgba(59, 130, 246, 0.12);
-    border-color: #3b82f6;
-    color: #60a5fa;
-}
-.airline-option input[type="radio"]:checked + .airline-indigo .airline-code {
-    background: rgba(59, 130, 246, 0.2);
-    opacity: 1;
-}
-.airline-option input[type="radio"]:checked + .airline-airindia {
-    background: rgba(220, 38, 38, 0.1);
-    border-color: #dc2626;
-    color: #f87171;
-}
-.airline-option input[type="radio"]:checked + .airline-airindia .airline-code {
-    background: rgba(220, 38, 38, 0.2);
-    opacity: 1;
-}
-.airline-option input[type="radio"]:checked + .airline-vietjet {
-    background: rgba(255, 140, 0, 0.1);
-    border-color: #f97316;
-    color: #fb923c;
-}
-.airline-option input[type="radio"]:checked + .airline-vietjet .airline-code {
-    background: rgba(255, 140, 0, 0.2);
-    opacity: 1;
-}
-.airline-option input[type="radio"]:checked + .airline-singaporeair {
-    background: rgba(253, 185, 39, 0.1);
-    border-color: #fdb927;
-    color: #fdb927;
-}
-.airline-option input[type="radio"]:checked + .airline-singaporeair .airline-code {
-    background: rgba(253, 185, 39, 0.2);
-    opacity: 1;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
 }
 
-/* Small badges next to PNR */
-.airline-badge-sm {
-    display: inline-block;
-    font-size: 9px;
+.airline-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.airline-card-option {
+    cursor: pointer;
+}
+
+.airline-card-option input[type="radio"] {
+    display: none;
+}
+
+.airline-card-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 8px 12px;
+    background: var(--bg-input);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition: all 0.2s var(--ease);
+    text-align: center;
+}
+
+.airline-card-inner:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+    transform: translateY(-1px);
+}
+
+.airline-card-option input[type="radio"]:checked + .airline-card-inner {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.airline-logo-img {
+    border-radius: 6px;
+    object-fit: contain;
+    background: rgba(255,255,255,0.08);
+    padding: 2px;
+}
+
+.airline-card-inner .airline-logo-img {
+    width: 36px;
+    height: 36px;
+}
+
+.airline-card-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.airline-card-option input[type="radio"]:checked + .airline-card-inner .airline-card-name {
+    color: var(--text-primary);
+}
+
+.airline-card-code {
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.5px;
-    padding: 2px 5px;
-    border-radius: 3px;
+    color: var(--text-muted);
+    background: rgba(255,255,255,0.06);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+/* ==================
+   AIRLINE BADGE (logo + code, used next to PNR)
+   ================== */
+.airline-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px 3px 4px;
+    border-radius: 6px;
+    font-size: 0;
     vertical-align: middle;
-    margin-right: 4px;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    transition: background 0.2s var(--ease);
+}
+
+.airline-badge .airline-logo-img {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    object-fit: contain;
+    background: rgba(255,255,255,0.08);
+    padding: 1px;
+}
+
+.badge-code {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
     line-height: 1;
 }
-.badge-indigo {
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
-    border: 1px solid rgba(59, 130, 246, 0.25);
+
+.badge-indigo { background: rgba(99, 102, 241, 0.10); border-color: rgba(99, 102, 241, 0.18); }
+.badge-indigo .badge-code { color: #818cf8; }
+
+.badge-airindia { background: rgba(220, 38, 38, 0.08); border-color: rgba(220, 38, 38, 0.18); }
+.badge-airindia .badge-code { color: #f87171; }
+
+.badge-vietjet { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.18); }
+.badge-vietjet .badge-code { color: #fb923c; }
+
+.badge-singaporeair { background: rgba(253, 185, 39, 0.08); border-color: rgba(253, 185, 39, 0.18); }
+.badge-singaporeair .badge-code { color: #fdb927; }
+
+.badge-akasaair { background: rgba(139, 92, 246, 0.08); border-color: rgba(139, 92, 246, 0.18); }
+.badge-akasaair .badge-code { color: #a78bfa; }
+
+.badge-etihad { background: rgba(189, 139, 19, 0.08); border-color: rgba(189, 139, 19, 0.18); }
+.badge-etihad .badge-code { color: #fbbf24; }
+
+.badge-thaiairways { background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.18); }
+.badge-thaiairways .badge-code { color: #c084fc; }
+
+.badge-srilankan { background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.18); }
+.badge-srilankan .badge-code { color: #60a5fa; }
+
+/* ==================
+   SUPPORTED AIRLINES SHOWCASE
+   ================== */
+.airlines-showcase {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.5));
 }
-.badge-airindia {
-    background: rgba(220, 38, 38, 0.12);
-    color: #f87171;
-    border: 1px solid rgba(220, 38, 38, 0.25);
+
+.airlines-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
 }
-.badge-vietjet {
-    background: rgba(255, 140, 0, 0.12);
-    color: #fb923c;
-    border: 1px solid rgba(255, 140, 0, 0.25);
+
+.airline-showcase-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 18px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: var(--radius-sm);
+    min-width: 100px;
+    transition: all 0.2s var(--ease);
 }
-.badge-singaporeair {
-    background: rgba(253, 185, 39, 0.12);
-    color: #fdb927;
-    border: 1px solid rgba(253, 185, 39, 0.25);
+
+.airline-showcase-item:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.12);
+    transform: translateY(-2px);
 }
-.airline-option input[type="radio"]:checked + .airline-akasaair {
-    background: rgba(92, 29, 143, 0.12);
-    border-color: #7c3aed;
-    color: #a78bfa;
+
+.airline-showcase-item .airline-logo-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.1);
+    padding: 3px;
 }
-.airline-option input[type="radio"]:checked + .airline-akasaair .airline-code {
-    background: rgba(92, 29, 143, 0.2);
-    opacity: 1;
+
+.airline-showcase-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: center;
+    line-height: 1.2;
 }
-.airline-option input[type="radio"]:checked + .airline-etihad {
-    background: rgba(189, 139, 19, 0.1);
-    border-color: #bd8b13;
-    color: #d4a017;
+
+.airline-showcase-code {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    background: rgba(255,255,255,0.04);
+    padding: 1px 6px;
+    border-radius: 3px;
 }
-.airline-option input[type="radio"]:checked + .airline-etihad .airline-code {
-    background: rgba(189, 139, 19, 0.2);
-    opacity: 1;
+
+/* Section title with icons */
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
-.badge-akasaair {
-    background: rgba(92, 29, 143, 0.15);
-    color: #a78bfa;
-    border: 1px solid rgba(92, 29, 143, 0.25);
-}
-.badge-etihad {
-    background: rgba(189, 139, 19, 0.12);
-    color: #d4a017;
-    border: 1px solid rgba(189, 139, 19, 0.25);
+
+.section-title svg {
+    opacity: 0.6;
+    flex-shrink: 0;
 }
 
 /* ==================
    COMPLETED FLIGHTS TOGGLE
    ================== */
 .completed-section {
-    background: rgba(20, 28, 48, 0.5);
-    border-color: rgba(28, 40, 68, 0.5);
+    background: rgba(12, 24, 16, 0.5);
+    border-color: rgba(20, 42, 30, 0.5);
 }
 
 .btn-toggle {
@@ -828,8 +947,8 @@ body {
    INFO / STEPS
    ================== */
 .info-card {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.04), rgba(139, 92, 246, 0.04));
-    border-color: rgba(59, 130, 246, 0.12);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.04), rgba(163, 126, 245, 0.04));
+    border-color: rgba(99, 102, 241, 0.12);
 }
 
 .steps-row {
@@ -845,7 +964,7 @@ body {
 .step-num {
     width: 32px;
     height: 32px;
-    background: linear-gradient(135deg, var(--accent), #6366f1);
+    background: linear-gradient(135deg, var(--accent), #60a5fa);
     color: #fff;
     border-radius: 50%;
     display: flex;
@@ -899,13 +1018,18 @@ body {
 }
 .flash-success {
     background: rgba(34, 197, 94, 0.1);
-    border: 1px solid rgba(34, 197, 94, 0.25);
+    border: 1px solid rgba(34, 197, 94, 0.15);
     color: var(--success);
 }
 .flash-error {
     background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.25);
+    border: 1px solid rgba(239, 68, 68, 0.15);
     color: var(--danger);
+}
+.status-step.active .step-icon {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    color: var(--accent);
 }
 .flash-info {
     background: rgba(59, 130, 246, 0.1);
@@ -955,12 +1079,14 @@ body {
    MOBILE FLIGHT CARDS
    ================== */
 .flight-card {
-    background: var(--bg-card);
+    background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     overflow: hidden;
     margin-bottom: 12px;
     border-left: 3px solid var(--border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 
 /* Status accent borders */
@@ -976,7 +1102,7 @@ body {
     justify-content: space-between;
     padding: 14px 16px 10px;
 }
-.fc-pnr { display: flex; flex-direction: column; gap: 2px; }
+.fc-pnr { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .flight-card-body { padding: 0 16px 14px; }
 
@@ -1069,7 +1195,7 @@ body {
     padding: 8px 16px 12px;
     color: var(--text-muted);
     font-size: 12px;
-    border-top: 1px solid rgba(28, 40, 68, 0.5);
+    border-top: 1px solid rgba(20, 42, 30, 0.5);
 }
 
 .fc-actions {
@@ -1124,26 +1250,92 @@ body {
     .step-item p { font-size: 11px; }
 
     .form-row { grid-template-columns: 1fr; }
+
+    /* Airline grid: 4 columns on tablet */
+    .airline-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+    }
+    .airline-card-inner {
+        padding: 10px 4px;
+        gap: 4px;
+    }
+    .airline-card-name {
+        font-size: 10px;
+    }
+
+    /* Form inputs: prevent iOS zoom with 16px font */
+    .form-group input {
+        font-size: 16px;
+        min-height: 44px;
+        padding: 10px 14px;
+    }
+
+    /* Loading overlay: mobile-friendly */
+    .loading-card {
+        padding: 28px 24px;
+        margin: 0 16px;
+        max-width: calc(100vw - 32px);
+    }
+
+    /* Airlines showcase: compact */
+    .airline-showcase-item {
+        min-width: 70px;
+        padding: 10px 8px;
+    }
+    .airline-showcase-name { font-size: 10px; }
+
+    /* Safe area for notched phones */
+    body {
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+    }
+    .header {
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+    }
 }
 
 /* ==================
    RESPONSIVE — Small Phone
    ================== */
-@media (max-width: 400px) {
+@media (max-width: 480px) {
     .header-content {
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
         text-align: center;
     }
     .logo { justify-content: center; }
+    .header-actions {
+        width: 100%;
+        justify-content: center;
+    }
     .btn-glow span { display: none; }
 
     .tab { font-size: 12px; padding: 8px 12px; }
     .tab svg { width: 16px; height: 16px; }
 
+    /* Airline grid: 2 columns on small phones */
+    .airline-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+    }
+
     .fc-meta { grid-template-columns: 1fr 1fr; }
-    .airline-selector { flex-wrap: wrap; }
-    .airline-chip { padding: 7px 12px; font-size: 12px; }
+
+    /* Smaller city codes on compact mobile */
+    .city-code { font-size: 18px; }
+
+    /* Confirm modal: full width on small phones */
+    .confirm-card {
+        padding: 20px 16px;
+        max-width: calc(100vw - 24px);
+    }
+
+    /* Upload zone: more compact */
+    .upload-zone { padding: 24px 16px; }
+    .upload-icon-wrap { width: 44px; height: 44px; }
+    .upload-svg { width: 24px; height: 24px; }
 }
 
 /* ==================
@@ -1152,7 +1344,7 @@ body {
 .status-payment-pending {
     background: rgba(245, 158, 11, 0.12);
     color: var(--warning);
-    border: 1px solid rgba(245, 158, 11, 0.25);
+    border: 1px solid rgba(245, 158, 11, 0.15);
 }
 
 /* ==================
@@ -1318,7 +1510,7 @@ body {
     padding: 10px 16px 14px;
     font-size: 12px;
     color: var(--text-muted);
-    border-top: 1px solid rgba(28, 40, 68, 0.4);
+    border-top: 1px solid rgba(20, 42, 30, 0.4);
     line-height: 1.5;
     display: none;
 }
@@ -1381,7 +1573,7 @@ body {
     animation: fadeIn 0.15s;
 }
 .confirm-card {
-    background: var(--bg-card);
+    background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 28px 32px;
@@ -1389,6 +1581,8 @@ body {
     width: 90%;
     text-align: center;
     box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
 .confirm-card h3 {
     font-size: 16px;
@@ -1427,10 +1621,11 @@ body {
    ================== */
 @media (max-width: 768px) {
     .fc-actions { gap: 0; }
-    .fc-btn { padding: 13px; font-size: 13px; min-height: 44px; }
+    .fc-btn { padding: 13px; font-size: 13px; min-height: 48px; }
     .next-check-badge { display: none; }
     .date-group-header { padding: 8px 12px 5px; font-size: 10px; }
     .confirm-card { padding: 24px 20px; }
+    .btn-full { min-height: 48px; font-size: 15px; }
 }
 
 /* ==================
@@ -1504,16 +1699,15 @@ body {
     background: linear-gradient(90deg, var(--accent), #06b6d4);
     transition: width 0.5s ease;
     z-index: 9999;
-    box-shadow: 0 0 10px var(--accent);
 }
 
 /* AI Insights Section */
 .ai-insights-card {
-    background: linear-gradient(145deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.9));
-    border: 1px solid rgba(139, 92, 246, 0.3);
-    box-shadow: 0 4px 20px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    margin-bottom: 24px;
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius);
     padding: 20px 24px;
+    margin-bottom: 24px;
     position: relative;
     overflow: hidden;
 }
@@ -1525,7 +1719,7 @@ body {
     left: -100%;
     width: 50%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.1), transparent);
+    background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.1), transparent);
     animation: ai-shimmer 3s infinite;
 }
 
@@ -1576,3 +1770,4 @@ body {
     color: #f8fafc;
     font-weight: 600;
 }
+

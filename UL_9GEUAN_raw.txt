@@ -1,0 +1,22 @@
+Skip to the main content
+Opens up a Pop Up Dialog
+Error:
+1 error
+The payment for this booking is incomplete, please complete the payment for this booking.
+Search for a booking
+Identification type
+Booking reference
+Booking reference
+Booking reference is a 6 alpha-numeric code.
+Last name
+Continue
+Secured payment
+Credit card fees may occur.
+Follow us
+Opens in new window
+Opens in new window
+Opens in new window
+Opens in new window
+Opens in new window
+Copyright information
+Loading complete

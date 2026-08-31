@@ -46,7 +46,7 @@ def deduplicate_text(text):
 def detect_airline(text):
     """
     Detect which airline a PDF belongs to.
-    Returns 'airindia', 'vietjet', or 'indigo'.
+    Returns 'airindia', 'vietjet', 'srilankan', or 'indigo'.
     """
     text_lower = text.lower()
 
@@ -63,25 +63,34 @@ def detect_airline(text):
     if re.search(r'\bAI[\s-]*\d{1,4}\b', text):
         ai_score += 3
 
+    # SriLankan Airlines indicators
+    ul_indicators = ['srilankan', 'srilankan airlines', 'srilankan.com',
+                     'bandaranaike', 'colombo', 'operated by']
+    ul_score = sum(1 for ind in ul_indicators if ind in text_lower)
+    if re.search(r'\bUL\s*\d{1,4}\b', text):
+        ul_score += 3
+
     # IndiGo indicators
     indigo_indicators = ['indigo', 'goindigo', '6e ', '6e-', 'interglobe']
     indigo_score = sum(1 for ind in indigo_indicators if ind in text_lower)
     if re.search(r'6E\s*\d{3,4}', text):
         indigo_score += 3
 
-    best = max(vj_score, ai_score, indigo_score)
+    best = max(vj_score, ai_score, ul_score, indigo_score)
     if best == 0:
         return 'indigo'
     if vj_score == best:
         return 'vietjet'
     if ai_score == best:
         return 'airindia'
+    if ul_score == best:
+        return 'srilankan'
     return 'indigo'
 
 
 def parse_booking(pdf_path):
     """
-    Parse a booking confirmation PDF — auto-detects airline (IndiGo or Air India).
+    Parse a booking confirmation PDF — auto-detects airline (IndiGo, Air India, VietJet, or SriLankan).
 
     Returns a list of booking dicts (one per flight segment), each with:
     - pnr, passenger_name, flight_number, route, flight_date,
@@ -91,13 +100,15 @@ def parse_booking(pdf_path):
     if not raw_text:
         raise ValueError("Could not extract text from PDF. File may be corrupted or image-based.")
 
-    # Detect airline before dedup (Air India PDFs don't need dedup)
+    # Detect airline before dedup (Air India / SriLankan PDFs don't need dedup)
     airline = detect_airline(raw_text)
 
     if airline == 'airindia':
         return parse_airindia_booking(raw_text)
     elif airline == 'vietjet':
         return parse_vietjet_booking(raw_text)
+    elif airline == 'srilankan':
+        return parse_srilankan_booking(raw_text)
     else:
         return parse_indigo_booking(raw_text)
 
@@ -549,6 +560,140 @@ def extract_flight_segments_airindia(text):
             })
 
     return segments
+
+
+def parse_srilankan_booking(raw_text):
+    """
+    Parse a SriLankan Airlines booking confirmation PDF.
+    SriLankan PDFs use standard text (no character duplication).
+    """
+    text = raw_text  # No deduplication needed
+
+    # Extract PNR — SriLankan format: "booking reference is\n9GRW4B"
+    pnr = None
+    pnr_patterns = [
+        r'booking\s+reference\s+is\s*\n\s*([A-Z0-9]{6})',
+        r'booking\s+reference\s*:?\s*([A-Z0-9]{6})',
+        r'PNR\s*:?\s*([A-Z0-9]{6})',
+        r'Booking\s+Reference\s+([A-Z0-9]{6})',
+    ]
+    for pattern in pnr_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            pnr = match.group(1).upper()
+            break
+    if not pnr:
+        # Fallback: generic PNR extraction
+        pnr = extract_pnr(text)
+    if not pnr:
+        raise ValueError("Could not find PNR/Booking Reference in the SriLankan Airlines PDF.")
+
+    # Extract passenger name — SriLankan format: "Passenger" section followed by name
+    # Note: PDF may have unicode icon chars (\ue91d etc.) between "Passenger" and the actual name
+    passenger_name = None
+    name_patterns = [
+        # "Passenger\n<unicode>\nKhushi Naresh Vanigotta" — allow any non-alpha chars between
+        r'Passenger[^A-Za-z]*\n[^A-Za-z]*\n\s*([A-Za-z]+(?:\s+[A-Za-z]+)+)',
+        r'Passenger\s*\n+.*?\n\s*([A-Za-z]+(?:\s+[A-Za-z]+)+)',
+        # Standard "Mr/Mrs" patterns
+        r'\b(Mr|Mrs|Ms|Miss|Master)\.?\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+(?:Adult|Child|Infant)',
+        r'\b(Mr|Mrs|Ms|Miss|Master)\.?\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)',
+    ]
+    for pattern in name_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            if match.lastindex >= 2:
+                passenger_name = match.group(2).strip()
+            else:
+                passenger_name = match.group(1).strip()
+            break
+
+    # Extract flight number — UL followed by digits
+    # Note: PDF may have unicode icon chars before 'UL' (e.g. '\ue921UL 143operated by')
+    flight_number = None
+    ul_match = re.search(r'UL\s*(\d{1,4})', text)
+    if ul_match:
+        flight_number = f"UL {ul_match.group(1)}"
+
+    # Extract route — look for 3-letter IATA codes near each other
+    route = None
+    # SriLankan PDF format: "CMB BOM" on same line or near each other
+    route_match = re.search(r'\b([A-Z]{3})\s+([A-Z]{3})\b', text)
+    if route_match:
+        code1, code2 = route_match.group(1), route_match.group(2)
+        non_airport = {'THE', 'AND', 'FOR', 'ARE', 'NOT', 'YOU', 'ALL', 'CAN',
+                       'HER', 'WAS', 'ONE', 'OUR', 'OUT', 'DAY', 'GET', 'HAS',
+                       'HIM', 'HIS', 'HOW', 'MAN', 'NEW', 'NOW', 'OLD', 'SEE',
+                       'WAY', 'WHO', 'BOY', 'DID', 'ITS', 'LET', 'PUT', 'SAY',
+                       'SHE', 'TOO', 'USE', 'TAX', 'FEE', 'PRE', 'FAQ', 'APP',
+                       'WEB', 'LOG', 'ADD', 'FLY', 'USD', 'EUR', 'GBP', 'LKR'}
+        if code1 not in non_airport and code2 not in non_airport:
+            route = f"{code1}-{code2}"
+    # Fallback: dash-separated
+    if not route:
+        route_match = re.search(r'([A-Z]{3})\s*[-–→]\s*([A-Z]{3})', text)
+        if route_match:
+            route = f"{route_match.group(1)}-{route_match.group(2)}"
+
+    # Extract flight date — SriLankan uses full month names:
+    # "Thursday, 24 September 2026" or "24 September 2026"
+    flight_date = None
+    date_patterns = [
+        r'(?:\w+day,?\s+)?(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})',
+        r'(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})',
+    ]
+    for pattern in date_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            try:
+                day, month, year = match.group(1), match.group(2), match.group(3)
+                date_str = f"{day} {month} {year}"
+                # Try full month name first, then abbreviated
+                for fmt in ['%d %B %Y', '%d %b %Y']:
+                    try:
+                        dt = datetime.strptime(date_str, fmt)
+                        flight_date = dt.strftime('%Y-%m-%d')
+                        break
+                    except ValueError:
+                        continue
+                if flight_date:
+                    break
+            except Exception:
+                continue
+
+    # Extract departure/arrival times
+    dep_time = None
+    arr_time = None
+    # SriLankan PDF has times like "17:15" and "19:50" near the route
+    time_matches = re.findall(r'\b(\d{2}:\d{2})\b', text)
+    if time_matches:
+        dep_time = time_matches[0]
+        if len(time_matches) >= 2:
+            arr_time = time_matches[1]
+
+    if not flight_date:
+        raise ValueError("Could not extract flight date from the SriLankan Airlines PDF.")
+
+    # Extract passenger lastname for the scraper
+    passenger_lastname = None
+    if passenger_name:
+        name_parts = passenger_name.strip().split()
+        if len(name_parts) >= 2:
+            passenger_lastname = name_parts[-1]
+        else:
+            passenger_lastname = name_parts[0]
+
+    return [{
+        'pnr': pnr,
+        'passenger_name': passenger_name or 'Unknown',
+        'flight_number': flight_number or 'Unknown',
+        'route': route or 'Unknown',
+        'flight_date': flight_date,
+        'departure_time': dep_time,
+        'arrival_time': arr_time,
+        'airline': 'srilankan',
+        'passenger_count': extract_passenger_count(text),
+    }]
 
 
 def parse_vietjet_booking(text):

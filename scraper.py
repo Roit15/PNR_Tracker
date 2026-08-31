@@ -67,7 +67,7 @@ def _create_stealth_driver():
         else:
             logger.info("Local mode: visible popup (undetected-chromedriver)")
         
-        driver = uc.Chrome(options=uc_options, use_subprocess=False)
+        driver = uc.Chrome(options=uc_options, version_main=151, use_subprocess=True)
         logger.info("Using undetected-chromedriver for IndiGo")
         return driver
     except Exception as e:
@@ -161,10 +161,12 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
             time.sleep(random.uniform(0.08, 0.2))
         time.sleep(random.uniform(0.8, 1.5))
 
-        # Click Get Started (use ActionChains for human-like click)
+        # Click Get Started
         get_started = wait.until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[title="Get Started"]'))
         )
+        # Scroll it to the center to avoid cookie banners covering it
+        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", get_started)
         time.sleep(random.uniform(0.5, 1.0))
         try:
             from selenium.webdriver.common.action_chains import ActionChains
@@ -172,21 +174,27 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
         except Exception:
             get_started.click()
 
-        # Smart wait: poll until results appear (max 25s)
+        # Mandatory wait for the loading screen/spinner to clear
+        time.sleep(10)
+
+        # Smart wait: poll until results appear (max 20s)
         page_text = ""
-        for i in range(25):
+        for i in range(20):
             time.sleep(1)
             page_text = driver.find_element(By.TAG_NAME, 'body').text
             text_lower = page_text.lower()
-            # Check for definitive result signals
+            
+            # The loading screen might contain generic keywords. 
+            # We require the text to be somewhat substantial or contain specific error phrases.
             if any(kw in text_lower for kw in ['invalid', 'not found', 'no booking', 'error']):
                 logger.info(f"Got error response after {i+1}s")
                 break
-            if any(kw in text_lower for kw in ['terminal information', 'flight number', 'departure', 'confirmed', 'cancelled']):
+            # A valid itinerary page usually has much more text than the base page
+            if len(page_text) > 1000 and any(kw in text_lower for kw in ['terminal information', 'flight number', 'departure', 'confirmed']):
                 logger.info(f"Got flight data after {i+1}s")
                 break
         else:
-            logger.info("Timed out waiting for results (25s), proceeding with current page")
+            logger.info("Timed out waiting for results (20s), proceeding with current page")
 
         # Re-read final page content
         page_text = driver.find_element(By.TAG_NAME, 'body').text
@@ -220,6 +228,12 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
             end = min(len(fl), idx + len(pnr_l) + window)
             region = fl[start:end]
             return kw in region
+
+        # Safety check: If we are still on the base page (form didn't submit)
+        if 'pnr / booking reference' in text_lower and 'get started' in text_lower:
+            result['status'] = 'Error'
+            result['detail'] = 'Stuck on loading page. Form did not submit successfully.'
+            return result
 
         if 'invalid' in text_lower or 'not found' in text_lower or 'no booking' in text_lower:
             result['status'] = 'Not Found'
@@ -514,6 +528,7 @@ def check_pnr_status(pnr, lastname_or_email):
 
 if __name__ == '__main__':
     import sys
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
     if len(sys.argv) >= 3:
         pnr = sys.argv[1]
         lastname = sys.argv[2]

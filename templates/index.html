@@ -13,7 +13,10 @@
 {% macro airline_badge(airline) %}
 {% set badge_class = 'badge-akasaair' if airline == 'akasaair' else ('badge-etihad' if airline == 'etihad' else ('badge-airindia' if airline == 'airindia' else ('badge-vietjet' if airline == 'vietjet' else ('badge-singaporeair' if airline == 'singaporeair' else ('badge-thaiairways' if airline == 'thaiairways' else ('badge-srilankan' if airline == 'srilankan' else 'badge-indigo')))))) %}
 {% set airline_code = 'QP' if airline == 'akasaair' else ('EY' if airline == 'etihad' else ('AI' if airline == 'airindia' else ('VJ' if airline == 'vietjet' else ('SQ' if airline == 'singaporeair' else ('TG' if airline == 'thaiairways' else ('UL' if airline == 'srilankan' else '6E')))))) %}
-<span class="airline-badge-sm {{ badge_class }}">{{ airline_code }}</span>
+<div class="airline-badge {{ badge_class }}" title="{{ airline|title }}">
+    <img src="https://pics.avs.io/200/200/{{ airline_code }}.png" class="airline-logo-img" alt="{{ airline_code }}">
+    <span class="badge-code">{{ airline_code }}</span>
+</div>
 {% endmacro %}
 
     <!-- Check Progress Bar (fixed at top) -->
@@ -23,7 +26,7 @@
     <header class="header">
         <div class="header-content">
             <div class="logo">
-                <div class="logo-mark">✈</div>
+                <div class="logo-mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></div>
                 <div>
                     <h1>PNR Tracker</h1>
                     <p class="subtitle">Multi-Airline Flight Status Monitor</p>
@@ -119,38 +122,71 @@
             <!-- Manual Tab -->
             <div class="tab-content" id="manual-tab">
                 <form action="{{ url_for('add_manual') }}" method="POST" id="manual-form">
-                    <div class="airline-selector" id="airline-selector">
-                        <label class="airline-option">
+                    <div class="section-label">Select Airline</div>
+                    <div class="airline-grid" id="airline-selector">
+                        <label class="airline-card-option">
                             <input type="radio" name="airline" value="indigo" checked>
-                            <span class="airline-chip airline-indigo">IndiGo <span class="airline-code">6E</span></span>
+                            <div class="airline-card-inner">
+                                <img src="https://pics.avs.io/200/200/6E.png" width="36" height="36" class="airline-logo-img" alt="IndiGo">
+                                <span class="airline-card-name">IndiGo</span>
+                                <span class="airline-card-code">6E</span>
+                            </div>
                         </label>
-                        <label class="airline-option">
+                        <label class="airline-card-option">
                             <input type="radio" name="airline" value="airindia">
-                            <span class="airline-chip airline-airindia">Air India <span class="airline-code">AI</span></span>
+                            <div class="airline-card-inner">
+                                <img src="https://pics.avs.io/200/200/AI.png" width="36" height="36" class="airline-logo-img" alt="Air India">
+                                <span class="airline-card-name">Air India</span>
+                                <span class="airline-card-code">AI</span>
+                            </div>
                         </label>
-                        <label class="airline-option">
+                        <label class="airline-card-option">
                             <input type="radio" name="airline" value="vietjet">
-                            <span class="airline-chip airline-vietjet">VietJet <span class="airline-code">VJ</span></span>
+                            <div class="airline-card-inner">
+                                <img src="https://pics.avs.io/200/200/VJ.png" width="36" height="36" class="airline-logo-img" alt="VietJet">
+                                <span class="airline-card-name">VietJet</span>
+                                <span class="airline-card-code">VJ</span>
+                            </div>
                         </label>
-                        <label class="airline-option">
+                        <label class="airline-card-option">
                             <input type="radio" name="airline" value="singaporeair">
-                            <span class="airline-chip airline-singaporeair">Singapore Airlines <span class="airline-code">SQ</span></span>
+                            <div class="airline-card-inner">
+                                <img src="https://pics.avs.io/200/200/SQ.png" width="36" height="36" class="airline-logo-img" alt="Singapore">
+                                <span class="airline-card-name">Singapore</span>
+                                <span class="airline-card-code">SQ</span>
+                            </div>
                         </label>
-                        <label class="airline-option">
+                        <label class="airline-card-option">
                             <input type="radio" name="airline" value="akasaair">
-                            <span class="airline-chip airline-akasaair">Akasa Air <span class="airline-code">QP</span></span>
+                            <div class="airline-card-inner">
+                                <img src="https://pics.avs.io/200/200/QP.png" width="36" height="36" class="airline-logo-img" alt="Akasa Air">
+                                <span class="airline-card-name">Akasa Air</span>
+                                <span class="airline-card-code">QP</span>
+                            </div>
                         </label>
-                        <label class="airline-option">
+                        <label class="airline-card-option">
                             <input type="radio" name="airline" value="etihad">
-                            <span class="airline-chip airline-etihad">Etihad <span class="airline-code">EY</span></span>
+                            <div class="airline-card-inner">
+                                <img src="https://pics.avs.io/200/200/EY.png" width="36" height="36" class="airline-logo-img" alt="Etihad">
+                                <span class="airline-card-name">Etihad</span>
+                                <span class="airline-card-code">EY</span>
+                            </div>
                         </label>
-                        <label class="airline-option">
+                        <label class="airline-card-option">
                             <input type="radio" name="airline" value="thaiairways">
-                            <span class="airline-chip airline-thaiairways">Thai Airways <span class="airline-code">TG</span></span>
+                            <div class="airline-card-inner">
+                                <img src="https://pics.avs.io/200/200/TG.png" width="36" height="36" class="airline-logo-img" alt="Thai Airways">
+                                <span class="airline-card-name">Thai Airways</span>
+                                <span class="airline-card-code">TG</span>
+                            </div>
                         </label>
-                        <label class="airline-option">
+                        <label class="airline-card-option">
                             <input type="radio" name="airline" value="srilankan">
-                            <span class="airline-chip airline-srilankan">SriLankan <span class="airline-code">UL</span></span>
+                            <div class="airline-card-inner">
+                                <img src="https://pics.avs.io/200/200/UL.png" width="36" height="36" class="airline-logo-img" alt="SriLankan">
+                                <span class="airline-card-name">SriLankan</span>
+                                <span class="airline-card-code">UL</span>
+                            </div>
                         </label>
                     </div>
                     <div class="form-row">
@@ -218,7 +254,7 @@
                                     <span class="pnr-code">{{ booking.pnr }}</span>
                                     <span class="passenger-name">{{ booking.passenger_name }}</span>
                                     {% if booking.passenger_count %}
-                                    <span class="passenger-count-badge" title="Passenger count">👤 {{ booking.passenger_count }}</span>
+                                    <span class="passenger-count-badge" title="Passenger count"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> {{ booking.passenger_count }}</span>
                                     {% endif %}
                                 </div>
                             </td>
@@ -227,7 +263,7 @@
                                 <span class="route-badge">{{ booking.route or '—' }}</span>
                                 {% if booking.pnr in trip_links %}
                                 <span class="trip-badge trip-{{ trip_links[booking.pnr].direction }}" title="Round Trip — {{ 'Outbound' if trip_links[booking.pnr].direction == 'outbound' else 'Return' }} · Paired with {{ trip_links[booking.pnr].paired_pnr }} ({{ trip_links[booking.pnr].paired_route }})">
-                                    {{ '✈→' if trip_links[booking.pnr].direction == 'outbound' else '↩' }} RT
+                                    {{ 'OUT' if trip_links[booking.pnr].direction == 'outbound' else 'RET' }} RT
                                 </span>
                                 {% endif %}
                             </td>
@@ -257,7 +293,7 @@
                         {% if booking.status_detail %}
                         <tr class="status-detail-row" id="detail-{{ booking.id }}">
                             <td colspan="8">
-                                <span class="status-detail-text">📋 {{ booking.status_detail }}</span>
+                                <span class="status-detail-text"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>{{ booking.status_detail }}</span>
                             </td>
                         </tr>
                         {% endif %}
@@ -276,7 +312,7 @@
                             <span class="pnr-code">{{ booking.pnr }}</span>
                             <span class="passenger-name">{{ booking.passenger_name }}</span>
                             {% if booking.passenger_count %}
-                            <span class="passenger-count-badge" title="Passenger count">👤 {{ booking.passenger_count }}</span>
+                            <span class="passenger-count-badge" title="Passenger count">&lt;svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"&gt;&lt;path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/&gt;&lt;circle cx="12" cy="7" r="4"/&gt;&lt;/svg&gt; {{ booking.passenger_count }}</span>
                             {% endif %}
                         </div>
                         <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">{{ booking.status }}</span>
@@ -309,7 +345,7 @@
                         {% if booking.pnr in trip_links %}
                         <div class="fc-trip-link">
                             <span class="trip-badge trip-{{ trip_links[booking.pnr].direction }}">
-                                {{ '✈→' if trip_links[booking.pnr].direction == 'outbound' else '↩' }} Round Trip
+                                {{ 'OUT' if trip_links[booking.pnr].direction == 'outbound' else 'RET' }} Round Trip
                             </span>
                             <span class="trip-paired">{{ trip_links[booking.pnr].paired_route }} · {{ trip_links[booking.pnr].paired_pnr }}</span>
                         </div>
@@ -329,7 +365,7 @@
                             </div>
                         </div>
                         {% if booking.status_detail %}
-                        <button class="fc-detail-toggle" onclick="this.nextElementSibling.classList.toggle('show')">📋 View details</button>
+                        <button class="fc-detail-toggle" onclick="this.nextElementSibling.classList.toggle('show')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:3px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>View details</button>
                         <div class="fc-detail">{{ booking.status_detail }}</div>
                         {% endif %}
                     </div>
@@ -392,7 +428,7 @@
                                         <span class="pnr-code">{{ booking.pnr }}</span>
                                         <span class="passenger-name">{{ booking.passenger_name }}</span>
                                         {% if booking.passenger_count %}
-                                        <span class="passenger-count-badge" title="Passenger count">👤 {{ booking.passenger_count }}</span>
+                                        <span class="passenger-count-badge" title="Passenger count">&lt;svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"&gt;&lt;path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/&gt;&lt;circle cx="12" cy="7" r="4"/&gt;&lt;/svg&gt; {{ booking.passenger_count }}</span>
                                         {% endif %}
                                     </div>
                                 </td>
@@ -401,7 +437,7 @@
                                     <span class="route-badge">{{ booking.route or '—' }}</span>
                                     {% if booking.pnr in trip_links %}
                                     <span class="trip-badge trip-{{ trip_links[booking.pnr].direction }}" title="Round Trip — {{ 'Outbound' if trip_links[booking.pnr].direction == 'outbound' else 'Return' }} · Paired with {{ trip_links[booking.pnr].paired_pnr }} ({{ trip_links[booking.pnr].paired_route }})">
-                                        {{ '✈→' if trip_links[booking.pnr].direction == 'outbound' else '↩' }} RT
+                                        {{ 'OUT' if trip_links[booking.pnr].direction == 'outbound' else 'RET' }} RT
                                     </span>
                                     {% endif %}
                                 </td>
@@ -427,7 +463,7 @@
                                 <span class="pnr-code">{{ booking.pnr }}</span>
                                 <span class="passenger-name">{{ booking.passenger_name }}</span>
                                 {% if booking.passenger_count %}
-                                <span class="passenger-count-badge" title="Passenger count">👤 {{ booking.passenger_count }}</span>
+                                <span class="passenger-count-badge" title="Passenger count">&lt;svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"&gt;&lt;path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/&gt;&lt;circle cx="12" cy="7" r="4"/&gt;&lt;/svg&gt; {{ booking.passenger_count }}</span>
                                 {% endif %}
                             </div>
                             <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">{{ booking.status }}</span>
@@ -442,7 +478,7 @@
                                     <span class="meta-label">Route</span>
                                     <span class="meta-value">{{ booking.route or '—' }}
                                         {% if booking.pnr in trip_links %}
-                                        <span class="trip-badge-sm trip-{{ trip_links[booking.pnr].direction }}">{{ '✈→' if trip_links[booking.pnr].direction == 'outbound' else '↩' }} RT</span>
+                                        <span class="trip-badge-sm trip-{{ trip_links[booking.pnr].direction }}">{{ 'OUT' if trip_links[booking.pnr].direction == 'outbound' else 'RET' }} RT</span>
                                         {% endif %}
                                     </span>
                                 </div>
@@ -459,35 +495,7 @@
         </section>
         {% endif %}
 
-        <!-- How It Works -->
-        <section class="card info-card">
-            <h3 class="section-title" style="margin-bottom: 20px;">How it works</h3>
-            <div class="steps-row">
-                <div class="step-item">
-                    <div class="step-num">1</div>
-                    <strong>Add</strong>
-                    <p>Upload PDF or enter PNR</p>
-                </div>
-                <div class="step-connector"></div>
-                <div class="step-item">
-                    <div class="step-num">2</div>
-                    <strong>Auto-Check</strong>
-                    <p>8 AM & 6 PM IST daily</p>
-                </div>
-                <div class="step-connector"></div>
-                <div class="step-item">
-                    <div class="step-num">3</div>
-                    <strong>Alert</strong>
-                    <p>Email status updates</p>
-                </div>
-                <div class="step-connector"></div>
-                <div class="step-item">
-                    <div class="step-num">4</div>
-                    <strong>Auto-Stop</strong>
-                    <p>Stops after flight date</p>
-                </div>
-            </div>
-        </section>
+
     </main>
 
     <footer class="footer">

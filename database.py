@@ -197,6 +197,7 @@ def deactivate_past_bookings():
     cursor = conn.cursor()
     today = date.today().strftime('%Y-%m-%d')
     now_time = datetime.now().strftime('%H:%M')
+    now_dt = datetime.now().strftime('%Y-%m-%d %H:%M')
 
     # Deactivate flights from past days
     cursor.execute('''
@@ -211,8 +212,8 @@ def deactivate_past_bookings():
         UPDATE bookings SET active = 0, status = CASE WHEN status IN ('Pending Check', 'Confirmed') THEN 'Completed' ELSE status END
         WHERE flight_date = ? AND active = 1
         AND departure_time IS NOT NULL AND departure_time != ''
-        AND TIME(departure_time) < TIME(?, '-3 hours')
-    ''', (today, now_time))
+        AND DATETIME(flight_date || ' ' || departure_time) < DATETIME(?, '-3 hours')
+    ''', (today, now_dt))
     count += cursor.rowcount
 
     conn.commit()
