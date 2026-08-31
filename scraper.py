@@ -39,20 +39,50 @@ MAX_RETRIES = 3
 def _is_cloud():
     """Detect if running in cloud/Docker (Render, Railway, etc.)."""
     return os.getenv('RENDER') or os.getenv('DISPLAY') == ':99'
-
+import random
 
 def _create_stealth_driver():
-    """Create a Chrome driver with stealth settings to bypass Akamai bot detection."""
+    """Create a Chrome driver with advanced stealth to bypass Akamai bot detection.
+    
+    Strategy:
+    1. Primary: undetected-chromedriver (patches Chrome binary to remove automation flags)
+    2. Fallback: standard Selenium + selenium-stealth (JS-level patching)
+    """
+    # Try undetected-chromedriver first (best for Akamai)
+    try:
+        import undetected_chromedriver as uc
+        
+        uc_options = uc.ChromeOptions()
+        uc_options.add_argument('--window-size=1280,720')
+        uc_options.add_argument('--no-first-run')
+        uc_options.add_argument('--no-default-browser-check')
+        uc_options.add_argument('--lang=en-US,en;q=0.9')
+        
+        if _is_cloud():
+            uc_options.add_argument('--headless=new')
+            uc_options.add_argument('--disable-gpu')
+            uc_options.add_argument('--no-sandbox')
+            uc_options.add_argument('--disable-dev-shm-usage')
+            logger.info("Cloud mode: headless + undetected-chromedriver")
+        else:
+            logger.info("Local mode: visible popup (undetected-chromedriver)")
+        
+        driver = uc.Chrome(options=uc_options, use_subprocess=False)
+        logger.info("Using undetected-chromedriver for IndiGo")
+        return driver
+    except Exception as e:
+        logger.warning(f"undetected-chromedriver failed ({e}), falling back to selenium-stealth")
+    
+    # Fallback: standard Selenium + selenium-stealth
     options = Options()
     options.add_argument('--window-size=1280,720')
     options.add_argument('--disable-blink-features=AutomationControlled')
     options.add_argument('--no-first-run')
     options.add_argument('--no-default-browser-check')
+    options.add_argument('--lang=en-US,en;q=0.9')
     options.add_experimental_option('excludeSwitches', ['enable-automation'])
     options.add_experimental_option('useAutomationExtension', False)
 
-    # Local: visible popup window
-    # Cloud: must be headless (no display)
     if _is_cloud():
         options.add_argument('--headless=new')
         options.add_argument('--disable-gpu')
@@ -60,24 +90,35 @@ def _create_stealth_driver():
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-extensions')
         options.add_argument('--disable-software-rasterizer')
-        options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
-        logger.info("Cloud mode: headless + no-sandbox + stealth user-agent")
+        options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
+        logger.info("Cloud mode: headless + stealth fallback")
     else:
-        logger.info("Local mode: visible popup window")
+        logger.info("Local mode: visible popup window (stealth fallback)")
 
-    # Use webdriver-manager to auto-install matching chromedriver
     try:
         from webdriver_manager.chrome import ChromeDriverManager
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
     except Exception:
-        # Fallback: system chromedriver
         driver = webdriver.Chrome(options=options)
 
-    # Remove webdriver flag from navigator
-    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-        'source': 'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
-    })
+    # Apply selenium-stealth for JS-level anti-detection
+    try:
+        from selenium_stealth import stealth
+        stealth(driver,
+            languages=["en-US", "en"],
+            vendor="Google Inc.",
+            platform="Win32",
+            webgl_vendor="Intel Inc.",
+            renderer="Intel Iris OpenGL Engine",
+            fix_hairline=True,
+        )
+        logger.info("Applied selenium-stealth patches")
+    except ImportError:
+        # Minimal JS patching if selenium-stealth not available
+        driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+            'source': 'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
+        })
 
     return driver
 
@@ -93,7 +134,7 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
 
         # Navigate to My Bookings page
         driver.get(INDIGO_URL)
-        time.sleep(15)
+        time.sleep(random.uniform(8, 12))
 
         # Wait for PNR input to be visible
         wait = WebDriverWait(driver, 40)
@@ -101,29 +142,55 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
             EC.visibility_of_element_located((By.NAME, 'pnr-booking-ref'))
         )
 
-        # Fill PNR
+        # Fill PNR (human-like: type each character with random delay)
+        pnr_input.click()
+        time.sleep(0.3)
         pnr_input.clear()
-        pnr_input.send_keys(pnr)
-        time.sleep(0.5)
+        for char in pnr:
+            pnr_input.send_keys(char)
+            time.sleep(random.uniform(0.08, 0.2))
+        time.sleep(random.uniform(0.5, 1.0))
 
-        # Fill Last Name / Email
+        # Fill Last Name / Email (human-like)
         email_input = driver.find_element(By.NAME, 'email-last-name')
+        email_input.click()
+        time.sleep(0.3)
         email_input.clear()
-        email_input.send_keys(lastname_or_email)
-        time.sleep(1)
+        for char in lastname_or_email:
+            email_input.send_keys(char)
+            time.sleep(random.uniform(0.08, 0.2))
+        time.sleep(random.uniform(0.8, 1.5))
 
-        # Click Get Started
+        # Click Get Started (use ActionChains for human-like click)
         get_started = wait.until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[title="Get Started"]'))
         )
-        time.sleep(0.5)
-        get_started.click()
+        time.sleep(random.uniform(0.5, 1.0))
+        try:
+            from selenium.webdriver.common.action_chains import ActionChains
+            ActionChains(driver).move_to_element(get_started).pause(0.3).click().perform()
+        except Exception:
+            get_started.click()
 
-        # Wait for results to load
-        time.sleep(15)
+        # Smart wait: poll until results appear (max 25s)
+        page_text = ""
+        for i in range(25):
+            time.sleep(1)
+            page_text = driver.find_element(By.TAG_NAME, 'body').text
+            text_lower = page_text.lower()
+            # Check for definitive result signals
+            if any(kw in text_lower for kw in ['invalid', 'not found', 'no booking', 'error']):
+                logger.info(f"Got error response after {i+1}s")
+                break
+            if any(kw in text_lower for kw in ['terminal information', 'flight number', 'departure', 'confirmed', 'cancelled']):
+                logger.info(f"Got flight data after {i+1}s")
+                break
+        else:
+            logger.info("Timed out waiting for results (25s), proceeding with current page")
 
-        # Extract page content
+        # Re-read final page content
         page_text = driver.find_element(By.TAG_NAME, 'body').text
+
 
         # Save screenshot for debugging
         screenshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'screenshots')
