@@ -1165,35 +1165,46 @@ def extract_booking_detail(text):
 
 def _try_check_pnr_playwright(pnr, lastname, attempt=1):
     """
-    Check Air India PNR using Playwright + persistent Chrome CDP.
-    This connects to a real Chrome instance (launched via chrome_launcher.py)
-    that has real browsing fingerprints, cookies, and session data.
-    Much harder for Imperva WAF to detect as a bot.
+    Check Air India PNR using Playwright + real Google Chrome with stealth patches.
+    Uses Chrome's actual binary with a persistent profile, making it nearly
+    indistinguishable from a real user browsing session.
     """
-    import chrome_launcher
     from playwright.sync_api import sync_playwright
+    try:
+        from playwright_stealth import stealth_sync
+    except ImportError:
+        stealth_sync = None
 
-    logger.info(f"[AI-PW Attempt {attempt}/{MAX_RETRIES}] Checking PNR: {pnr} via Playwright persistent context")
+    logger.info(f"[AI-PW Attempt {attempt}/{MAX_RETRIES}] Checking PNR: {pnr} via Playwright + real Chrome")
 
     pw = sync_playwright().start()
     context = None
     page = None
     try:
         try:
-            # Use a real user agent to match the persistent profile behavior
-            ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
             context = pw.chromium.launch_persistent_context(
-                user_data_dir="/tmp/pnr-pw-profile",
+                user_data_dir="/tmp/pnr-chrome-stealth",
                 headless=False,
-                user_agent=ua,
-                args=["--disable-blink-features=AutomationControlled"]
+                channel="chrome",  # Use real Google Chrome, not Playwright Chromium
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-dev-shm-usage",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                ],
+                ignore_default_args=["--enable-automation"],
             )
         except Exception as e:
             pw.stop()
-            raise Exception(f"Could not launch persistent Playwright context: {e}") from e
+            raise Exception(f"Could not launch Chrome persistent context: {e}") from e
 
         # Persistent context already has a default page
         page = context.pages[0] if context.pages else context.new_page()
+
+        # Apply stealth patches to hide automation indicators
+        if stealth_sync:
+            stealth_sync(page)
+            logger.info("Stealth patches applied")
 
         # Navigate to manage booking page
         logger.info("Navigating to manage booking page...")
