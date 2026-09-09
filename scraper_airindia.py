@@ -1173,21 +1173,27 @@ def _try_check_pnr_playwright(pnr, lastname, attempt=1):
     import chrome_launcher
     from playwright.sync_api import sync_playwright
 
-    logger.info(f"[AI-PW Attempt {attempt}/{MAX_RETRIES}] Checking PNR: {pnr} via Playwright CDP")
+    logger.info(f"[AI-PW Attempt {attempt}/{MAX_RETRIES}] Checking PNR: {pnr} via Playwright persistent context")
 
-    chrome_launcher.ensure_chrome_running()
     pw = sync_playwright().start()
-    browser = None
+    context = None
     page = None
     try:
         try:
-            browser = pw.chromium.connect_over_cdp("http://localhost:9224")
+            # Use a real user agent to match the persistent profile behavior
+            ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            context = pw.chromium.launch_persistent_context(
+                user_data_dir="/tmp/pnr-pw-profile",
+                headless=False,
+                user_agent=ua,
+                args=["--disable-blink-features=AutomationControlled"]
+            )
         except Exception as e:
             pw.stop()
-            raise Exception(f"Could not connect to Chrome on port 9224: {e}") from e
+            raise Exception(f"Could not launch persistent Playwright context: {e}") from e
 
-        context = browser.contexts[0] if browser.contexts else browser.new_context()
-        page = context.new_page()
+        # Persistent context already has a default page
+        page = context.pages[0] if context.pages else context.new_page()
 
         # Navigate to manage booking page
         logger.info("Navigating to manage booking page...")
@@ -1318,22 +1324,14 @@ def _try_check_pnr_playwright(pnr, lastname, attempt=1):
         raise
     finally:
         # Close the tab we opened (and any extras) so no windows remain visible
-        if page:
+        if context:
             try:
-                page.close()
-            except Exception:
-                pass
-        # Close any extra tabs that were spawned, keep only one blank tab
-        if browser:
-            try:
-                for ctx in browser.contexts:
-                    pages = ctx.pages
-                    for p in pages:
-                        try:
-                            p.goto('about:blank')
-                        except Exception:
-                            pass
-                browser.disconnect()
+                for p in context.pages:
+                    try:
+                        p.close()
+                    except:
+                        pass
+                context.close()
             except Exception:
                 pass
         pw.stop()
