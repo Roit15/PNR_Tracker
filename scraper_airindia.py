@@ -15,7 +15,7 @@ import time
 import logging
 import re
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Module-level SSL fix — must run BEFORE any uc/urllib HTTPS calls,
 # and must persist across retries (uc.Chrome() can reset things).
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 AIRINDIA_HOME = "https://www.airindia.com/in/en.html"
 AIRINDIA_URL = "https://www.airindia.com/in/en/manage/booking.html"
-MAX_RETRIES = 1
+MAX_RETRIES = 2
 
 # Rotate User-Agent strings to avoid fingerprint-based blocking
 USER_AGENTS = [
@@ -55,6 +55,20 @@ USER_AGENTS = [
 def _human_delay(min_s=1.0, max_s=3.0):
     """Sleep for a random duration to mimic human behavior."""
     time.sleep(random.uniform(min_s, max_s))
+
+
+def _keyword_near_pnr(keyword, pnr_code, full_text, window=400):
+    """Check if a keyword appears near the PNR code in the text."""
+    fl = full_text.lower()
+    kw = keyword.lower()
+    pnr_l = pnr_code.lower()
+    idx = fl.find(pnr_l)
+    if idx == -1:
+        return False
+    start = max(0, idx - window)
+    end = min(len(fl), idx + len(pnr_l) + window)
+    region = fl[start:end]
+    return kw in region
 
 
 def _is_cloud():
@@ -109,6 +123,12 @@ def _create_stealth_driver():
         options.add_argument('--no-default-browser-check')
         options.add_argument('--lang=en-US,en;q=0.9')
         options.add_argument(f'--user-agent={random.choice(USER_AGENTS)}')
+        
+        # Use a persistent user data directory so cookies/session persist
+        # This makes repeat visits look like a returning user, not a fresh bot
+        user_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.chrome_profile_ai')
+        os.makedirs(user_data_dir, exist_ok=True)
+        options.add_argument(f'--user-data-dir={user_data_dir}')
 
         # Local: visible popup window (headless gets fingerprinted by Imperva)
         # Cloud: must be headless (no display)
@@ -129,6 +149,75 @@ def _create_stealth_driver():
             logger.info(f"Using Chrome version_main={chrome_version}")
 
         driver = uc.Chrome(**kwargs)
+        
+        # Inject comprehensive anti-fingerprint JS via CDP
+        # This defeats Imperva's client-side bot detection
+        try:
+            driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+                'source': '''
+                    // Override navigator.webdriver
+                    Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                    
+                    // Fake plugins array (real browsers have plugins)
+                    Object.defineProperty(navigator, 'plugins', {
+                        get: () => {
+                            const plugins = [1, 2, 3, 4, 5];
+                            plugins.__proto__ = PluginArray.prototype;
+                            return plugins;
+                        }
+                    });
+                    
+                    // Fake languages
+                    Object.defineProperty(navigator, 'languages', {
+                        get: () => ['en-US', 'en']
+                    });
+                    
+                    // Chrome runtime
+                    window.chrome = window.chrome || {};
+                    window.chrome.runtime = window.chrome.runtime || {};
+                    
+                    // Fix permissions query
+                    const originalQuery = window.navigator.permissions.query;
+                    window.navigator.permissions.query = (parameters) => (
+                        parameters.name === 'notifications' ?
+                            Promise.resolve({ state: Notification.permission }) :
+                            originalQuery(parameters)
+                    );
+                    
+                    // Prevent canvas fingerprinting detection
+                    const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+                    HTMLCanvasElement.prototype.toDataURL = function(type) {
+                        if (type === 'image/webp' || this.width === 0 || this.height === 0) {
+                            return originalToDataURL.apply(this, arguments);
+                        }
+                        const context = this.getContext('2d');
+                        if (context) {
+                            const shift = Math.random() * 0.01;
+                            const imageData = context.getImageData(0, 0, this.width, this.height);
+                            for (let i = 0; i < imageData.data.length; i += 4) {
+                                imageData.data[i] = imageData.data[i] + (shift > 0.005 ? 1 : 0);
+                            }
+                            context.putImageData(imageData, 0, 0);
+                        }
+                        return originalToDataURL.apply(this, arguments);
+                    };
+                    
+                    // Fix connection.rtt (bots often have rtt=0)
+                    if (navigator.connection) {
+                        Object.defineProperty(navigator.connection, 'rtt', {get: () => 100});
+                    }
+                    
+                    // Prevent detection of automated window.open
+                    const originalOpen = window.open;
+                    window.open = function() {
+                        return originalOpen.apply(this, arguments);
+                    };
+                '''
+            })
+            logger.info("CDP anti-fingerprint JS injected")
+        except Exception as e:
+            logger.warning(f"CDP injection failed (non-fatal): {e}")
+        
         logger.info("Using undetected-chromedriver (Imperva bypass)")
         return driver
 
@@ -201,7 +290,21 @@ def _create_stealth_driver():
 
 def _dismiss_popups(driver, wait):
     """Try to dismiss cookie consent, search overlays, and other popups."""
-    # 1. Cookie consent buttons
+    # 1. Air India specific cookie consent — "Accept All" button
+    # The cookie banner uses text "Accept All" and blocks form interaction
+    try:
+        accept_btns = driver.find_elements(By.XPATH,
+            '//button[contains(translate(text(),"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz"), "accept all")]')
+        for btn in accept_btns:
+            if btn.is_displayed():
+                driver.execute_script("arguments[0].click();", btn)
+                time.sleep(0.5)
+                logger.info("Dismissed Air India cookie consent via 'Accept All' button")
+                break
+    except Exception:
+        pass
+
+    # 2. Generic cookie consent buttons (fallback)
     cookie_selectors = [
         'button[id*="accept"]',
         'button[class*="accept"]',
@@ -220,8 +323,7 @@ def _dismiss_popups(driver, wait):
 
     time.sleep(0.2)
 
-    # 2. Close the "What are you looking for?" search overlay
-    # This overlay blocks the form — look for the X close button
+    # 3. Close the "What are you looking for?" search overlay
     search_close_selectors = [
         'button[aria-label="Close"]',
         'button[aria-label="close"]',
@@ -229,7 +331,6 @@ def _dismiss_popups(driver, wait):
         '.close-search',
         '.modal-close',
         'button[class*="close"]',
-        # Close icon in the search overlay (SVG or ×)
         '//button[contains(@class, "close")]',
         '//div[contains(@class, "search")]//button',
     ]
@@ -247,57 +348,122 @@ def _dismiss_popups(driver, wait):
         except (NoSuchElementException, Exception):
             continue
 
-    # 3. Click on body/main content to dismiss any remaining overlay
+    # 4. Remove any overlays via JS
     try:
         driver.execute_script("document.querySelector('.search-overlay, .overlay, .modal-backdrop')?.remove();")
         logger.info("Removed overlay elements via JS")
     except Exception:
         pass
 
+    # 5. Remove the cookie banner container entirely if it's still visible
+    try:
+        driver.execute_script("""
+            var cookieBanner = document.querySelector('.onetrust-consent-sdk, [id*="onetrust"], [class*="cookie-banner"], [class*="cookie-consent"]');
+            if (cookieBanner) cookieBanner.remove();
+            // Also try Air India's custom cookie element
+            var els = document.querySelectorAll('[class*="cookieConsent"], [class*="cookie-settings"]');
+            els.forEach(function(el) { el.remove(); });
+        """)
+    except Exception:
+        pass
+
+
+def _fill_input_angular(driver, element, value):
+    """
+    Fill an Angular Material input field properly.
+    Angular's change detection requires both native events AND model updates.
+    Simple send_keys() often fails because Angular doesn't see the change.
+    """
+    # First, click the element to focus it
+    try:
+        driver.execute_script("arguments[0].click();", element)
+        time.sleep(0.2)
+    except Exception:
+        pass
+
+    # Clear existing value
+    element.clear()
+    time.sleep(0.1)
+
+    # Type characters with human-like delays
+    for char in value:
+        element.send_keys(char)
+        time.sleep(random.uniform(0.05, 0.15))
+
+    # Trigger Angular change detection via JS events
+    driver.execute_script("""
+        var el = arguments[0];
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+        el.dispatchEvent(new Event('change', {bubbles: true}));
+        el.dispatchEvent(new Event('blur', {bubbles: true}));
+    """, element)
+    time.sleep(0.2)
+
+    # Verify the value was set
+    actual_value = element.get_attribute('value') or ''
+    if actual_value.upper() != value.upper():
+        # Fallback: set value via JavaScript and trigger events
+        logger.warning(f"send_keys value mismatch (got '{actual_value}', expected '{value}'). Using JS fallback.")
+        driver.execute_script("""
+            var el = arguments[0];
+            var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            nativeInputValueSetter.call(el, arguments[1]);
+            el.dispatchEvent(new Event('input', {bubbles: true}));
+            el.dispatchEvent(new Event('change', {bubbles: true}));
+            el.dispatchEvent(new Event('blur', {bubbles: true}));
+        """, element, value)
+        time.sleep(0.3)
+        actual_value = element.get_attribute('value') or ''
+        if actual_value.upper() != value.upper():
+            logger.error(f"JS fallback also failed: got '{actual_value}', expected '{value}'")
+        else:
+            logger.info(f"JS fallback succeeded: value = '{actual_value}'")
+
 
 def _find_and_fill_form(driver, wait, pnr, lastname):
     """
     Find the manage booking form fields and fill them.
-    Air India's SPA may use various selectors — we try multiple strategies.
+    Air India uses Angular Material components (ai-managebooking).
+    Known selectors: name='pnr-ip', id='pnr-ip-id', name='lastname-ip', id='lastname-ip-id'
     """
-    # Strategy 1: Common input selectors for Air India's manage booking
+    # Strategy 1: Known Air India Angular component selectors (most reliable)
     pnr_selectors = [
+        'input[name="pnr-ip"]',           # Current Angular form
+        'input#pnr-ip-id',                 # By ID
+        'input[aria-label*="PNR"]',
+        'input[aria-label*="Booking reference"]',
         'input[placeholder*="PNR"]',
         'input[placeholder*="Booking"]',
-        'input[placeholder*="booking"]',
-        'input[placeholder*="pnr"]',
         'input[name*="pnr"]',
         'input[name*="booking"]',
         'input[id*="pnr"]',
         'input[id*="booking"]',
-        'input[data-testid*="pnr"]',
-        'input[data-testid*="booking"]',
-        'input[aria-label*="PNR"]',
-        'input[aria-label*="Booking"]',
-        'input[aria-label*="booking reference"]',
+        'input[formcontrolname="pnrNumber"]',
     ]
 
     lastname_selectors = [
+        'input[name="lastname-ip"]',       # Current Angular form
+        'input#lastname-ip-id',            # By ID
+        'input[aria-label="Last Name"]',
         'input[placeholder*="Last"]',
-        'input[placeholder*="last"]',
         'input[placeholder*="Surname"]',
-        'input[placeholder*="surname"]',
         'input[name*="last"]',
         'input[name*="surname"]',
         'input[id*="last"]',
         'input[id*="surname"]',
-        'input[data-testid*="last"]',
-        'input[data-testid*="surname"]',
-        'input[aria-label*="Last"]',
-        'input[aria-label*="last name"]',
-        'input[aria-label*="Surname"]',
+        'input[formcontrolname="lastName"]',
     ]
 
-    # Wait for form inputs to appear in DOM generally
+    # Wait for the Angular form to render (look for the ai-managebooking element)
     try:
-        wait.until(lambda d: len(d.find_elements(By.CSS_SELECTOR, 'input')) > 1)
+        wait.until(lambda d: len(d.find_elements(By.CSS_SELECTOR, 'ai-managebooking, input[name="pnr-ip"], input[name*="pnr"]')) > 0)
+        logger.info("Angular manage booking form detected")
     except TimeoutException:
-        pass
+        # Fallback: wait for any input
+        try:
+            wait.until(lambda d: len(d.find_elements(By.CSS_SELECTOR, 'input')) > 1)
+        except TimeoutException:
+            pass
 
     # Fill PNR
     pnr_input = None
@@ -321,11 +487,8 @@ def _find_and_fill_form(driver, wait, pnr, lastname):
         else:
             raise Exception("Could not find PNR input field")
 
-    pnr_input.clear()
-    # Type characters with small random delays to mimic human typing
-    for char in pnr:
-        pnr_input.send_keys(char)
-        time.sleep(random.uniform(0.05, 0.15))
+    # Use Angular-aware filling
+    _fill_input_angular(driver, pnr_input, pnr)
     _human_delay(0.3, 0.8)
 
     # Fill Last Name
@@ -350,17 +513,24 @@ def _find_and_fill_form(driver, wait, pnr, lastname):
         else:
             raise Exception("Could not find Last Name input field")
 
-    lastname_input.clear()
-    # Type characters with small random delays to mimic human typing
-    for char in lastname:
-        lastname_input.send_keys(char)
-        time.sleep(random.uniform(0.05, 0.15))
+    # Use Angular-aware filling
+    _fill_input_angular(driver, lastname_input, lastname)
     _human_delay(0.3, 0.8)
+
+    # Verify both fields have values before submitting
+    pnr_val = pnr_input.get_attribute('value') or ''
+    ln_val = lastname_input.get_attribute('value') or ''
+    if not pnr_val or not ln_val:
+        logger.error(f"Form verification failed: PNR='{pnr_val}', LastName='{ln_val}'")
+        raise Exception(f"Form fields not filled properly (PNR='{pnr_val}', LastName='{ln_val}'). Angular binding may have failed.")
+    logger.info(f"Form verified: PNR='{pnr_val}', LastName='{ln_val}'")
 
     # Click submit using JavaScript to avoid overlay interception
     submit_btn = None
-    # Prioritize the "Submit" text button (visible in Air India UI as red button)
+    # Prioritize the Air India specific class, then text-based selectors
     submit_selectors = [
+        'button.form-btn.booking-flight-btn',  # Air India Angular component
+        'button.form-btn',                      # Simplified class
         '//button[contains(text(), "Submit")]',
         '//button[contains(text(), "submit")]',
         'button[type="submit"]',
@@ -370,8 +540,6 @@ def _find_and_fill_form(driver, wait, pnr, lastname):
         'button[class*="submit"]',
         'button[class*="retrieve"]',
         'button[class*="search"]',
-        'button[data-testid*="retrieve"]',
-        'button[data-testid*="submit"]',
         'input[type="submit"]',
     ]
     for sel in submit_selectors:
@@ -402,12 +570,37 @@ def _try_check_pnr(pnr, lastname, attempt=1):
     """
     Single attempt to check Air India PNR status via a fresh browser.
     Returns result dict or raises Exception on failure.
+    Uses CDP Network interception to capture the actual API response,
+    which is more reliable than parsing the DOM (which can show fake WAF responses).
     """
     driver = _create_stealth_driver()
     try:
         logger.info(f"[AI Attempt {attempt}/{MAX_RETRIES}] Checking PNR: {pnr}")
 
-        # Go directly to manage booking page (skip homepage — fewer requests = less fingerprinting)
+        # Enable CDP Network domain to capture XHR responses
+        # The Angular app calls an API endpoint after form submit — we intercept that
+        api_responses = []
+        try:
+            driver.execute_cdp_cmd('Network.enable', {})
+            logger.info("CDP Network interception enabled")
+        except Exception as e:
+            logger.warning(f"CDP Network.enable failed (non-fatal): {e}")
+
+        # Go to homepage first to get proper session cookies, then to manage booking
+        logger.info("Navigating to homepage to initialize session...")
+        driver.get(AIRINDIA_HOME)
+        _human_delay(4.0, 7.0)
+        
+        # Simulate human-like behavior: random scroll and mouse movement
+        try:
+            driver.execute_script("""
+                window.scrollTo(0, Math.random() * 300);
+                setTimeout(() => window.scrollTo(0, 0), 500);
+            """)
+        except Exception:
+            pass
+        _human_delay(1.0, 3.0)
+        
         logger.info("Navigating to manage booking page...")
         driver.get(AIRINDIA_URL)
         _human_delay(5.0, 9.0)  # longer delay to mimic real user
@@ -429,6 +622,61 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         _dismiss_popups(driver, wait)
         _human_delay(0.5, 1.0)
 
+        # Inject XHR/fetch interceptor to capture API responses
+        # This captures the REAL API response before the DOM is potentially tampered by WAF
+        try:
+            driver.execute_script("""
+                window.__aiApiResponses = [];
+                
+                // Intercept fetch() calls
+                const originalFetch = window.fetch;
+                window.fetch = function() {
+                    return originalFetch.apply(this, arguments).then(response => {
+                        const url = (typeof arguments[0] === 'string') ? arguments[0] : arguments[0]?.url || '';
+                        if (url.includes('booking') || url.includes('retrieve') || url.includes('cbiz') || url.includes('manage')) {
+                            response.clone().text().then(text => {
+                                try {
+                                    window.__aiApiResponses.push({
+                                        url: url,
+                                        status: response.status,
+                                        data: text,
+                                        timestamp: Date.now()
+                                    });
+                                } catch(e) {}
+                            });
+                        }
+                        return response;
+                    });
+                };
+                
+                // Intercept XMLHttpRequest
+                const originalXHROpen = XMLHttpRequest.prototype.open;
+                const originalXHRSend = XMLHttpRequest.prototype.send;
+                XMLHttpRequest.prototype.open = function(method, url) {
+                    this.__aiUrl = url;
+                    return originalXHROpen.apply(this, arguments);
+                };
+                XMLHttpRequest.prototype.send = function() {
+                    this.addEventListener('load', function() {
+                        const url = this.__aiUrl || '';
+                        if (url.includes('booking') || url.includes('retrieve') || url.includes('cbiz') || url.includes('manage')) {
+                            try {
+                                window.__aiApiResponses.push({
+                                    url: url,
+                                    status: this.status,
+                                    data: this.responseText,
+                                    timestamp: Date.now()
+                                });
+                            } catch(e) {}
+                        }
+                    });
+                    return originalXHRSend.apply(this, arguments);
+                };
+            """)
+            logger.info("XHR/fetch interceptor injected")
+        except Exception as e:
+            logger.warning(f"XHR interceptor injection failed (non-fatal): {e}")
+
         # Find and fill the form
         _find_and_fill_form(driver, wait, pnr, lastname)
 
@@ -437,19 +685,30 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         os.makedirs(screenshots_dir, exist_ok=True)
         driver.save_screenshot(os.path.join(screenshots_dir, f'AI_{pnr}_preresult.png'))
 
-        # Dynamically wait for results or secondary modal.
-        # NOTE: 'search for a booking' is the secondary modal header, NOT a result.
-        # The REAL result is either:
-        #   (a) an error banner above the modal ("1 ERROR\nThe payment for..."),
-        #   (b) booking details (itinerary, seat, etc.), or
-        #   (c) an Imperva block.
+        # Wait for results — try to capture the XHR API response first
+        # The Angular app makes an API call to check the booking
         result_keywords = ['error', 'terminal', 'invalid', 'not found', 'cancelled',
                            'confirmed', 'itinerary', 'seat', 'payment failed', 'payment',
-                           'booking cannot be found', 'search for a booking']
+                           'booking cannot be found', 'search for a booking',
+                           'booking not found', 'manage your booking', 'your booking']
         start_time = time.time()
         page_text = ""
+        api_data = None
+        
         while time.time() - start_time < 45:
             try:
+                # Try to capture API responses via CDP
+                try:
+                    api_data = driver.execute_script("""
+                        // Intercept XHR/fetch responses stored by our hook
+                        if (window.__aiApiResponses && window.__aiApiResponses.length > 0) {
+                            return window.__aiApiResponses;
+                        }
+                        return null;
+                    """)
+                except Exception:
+                    pass
+                
                 page_text = driver.find_element(By.TAG_NAME, 'body').text
                 text_lower = page_text.lower()
                 # Imperva block — bail out fast and let retry handle it
@@ -465,6 +724,19 @@ def _try_check_pnr(pnr, lastname, attempt=1):
             time.sleep(0.5)
 
         text_lower = page_text.lower()
+
+        # Log and save any captured API responses for debugging
+        if api_data:
+            logger.info(f"Captured {len(api_data)} API response(s) via XHR/fetch interceptor")
+            for i, resp in enumerate(api_data):
+                logger.info(f"  API[{i}]: URL={resp.get('url', '?')}, status={resp.get('status', '?')}, len={len(resp.get('data', ''))}")
+            # Save API responses for debugging
+            raw_dir = os.path.dirname(os.path.abspath(__file__))
+            with open(os.path.join(raw_dir, f'AI_{pnr}_api.json'), 'w') as f:
+                import json as _json
+                _json.dump(api_data, f, indent=2)
+        else:
+            logger.warning("No API responses captured — WAF may be blocking at network level")
 
         # Save screenshot and raw text BEFORE modal handling (for debugging every attempt)
         screenshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'screenshots')
@@ -580,9 +852,30 @@ def _try_check_pnr(pnr, lastname, attempt=1):
             region = fl[start:end]
             return kw in region
 
+        # --- Form-fill failure detection ---
+        # If the page still shows validation errors, the form was never submitted successfully
+        if ('pnr is required' in text_lower or 'last name is required' in text_lower) and \
+           'booking not found' not in text_lower and 'manage booking' in text_lower:
+            raise Exception("Form fill failed — validation errors present ('PNR is required' / 'Last Name is required'). Will retry.")
+
+        # PNR format validation error from Air India
+        if 'pnr is not valid' in text_lower:
+            result['status'] = 'Error'
+            result['detail'] = 'PNR format is not valid according to Air India. Please verify the PNR code.'
+
         # Status detection
+        # Booking found but cannot be modified online (often past/completed or agency-locked)
+        elif 'your booking cannot be modified online' in text_lower:
+            result['status'] = 'Confirmed'
+            result['detail'] = 'Booking found (cannot be modified online). For further assistance, contact Air India support.'
+
+        # "MANAGE YOUR BOOKING" with flight details — confirmed booking
+        elif 'manage your booking' in text_lower and 'booking reference' in text_lower and pnr.upper() in page_text.upper():
+            result['status'] = 'Confirmed'
+            result['detail'] = extract_booking_detail(page_text)
+
         # Payment FAILED → treat as Cancelled (ticket was never issued)
-        if any(phrase in text_lower for phrase in [
+        elif any(phrase in text_lower for phrase in [
             'payment failed', 'payment unsuccessful', 'payment has failed',
             'transaction failed', 'payment was not successful',
             'booking has been cancelled due to payment',
@@ -597,12 +890,17 @@ def _try_check_pnr(pnr, lastname, attempt=1):
             result['status'] = 'Payment Pending'
             result['detail'] = 'Payment incomplete — ticket not confirmed. Please complete payment on Air India.'
 
+        # BOOKING NOT FOUND — clear response from Air India
+        elif 'booking not found' in text_lower:
+            result['status'] = 'Not Found'
+            result['detail'] = 'Booking not found on Air India. The PNR may have expired, been cancelled, or is a codeshare booking.'
+
         elif any(phrase in text_lower for phrase in [
             'invalid', 'not found', 'no booking', 'cannot be found',
-            'booking cannot be found', 'try again', 'no record'
+            'booking cannot be found', 'no record'
         ]):
-            result['status'] = 'Cancelled'
-            result['detail'] = 'Booking not found on Air India — ticket likely cancelled.'
+            result['status'] = 'Not Found'
+            result['detail'] = 'Booking not found on Air India. The PNR may have expired, been cancelled, or is a codeshare booking.'
 
         elif 'access denied' in text_lower or 'incapsula' in text_lower:
             result['status'] = 'Error'
@@ -645,8 +943,10 @@ def _try_check_pnr(pnr, lastname, attempt=1):
             # Check if we're still stuck on the "Search for a booking" form
             # (means the submission never went through — soft block)
             if 'search for a booking' in text_lower and 'booking reference' in text_lower and 'continue' in text_lower:
-                # Only the form fields are on screen — no real status was returned
                 raise Exception("Air India soft-blocked the request (form re-displayed without result). Will retry.")
+            # Check if page is still showing the manage booking form with no result
+            if 'manage booking' in text_lower and 'submit' in text_lower and len(page_text) < 500:
+                raise Exception("Page still showing empty form — submission may not have worked. Will retry.")
             result['status'] = 'Checked'
             result['detail'] = page_text[:500] if page_text else 'Could not parse status'
 
@@ -657,7 +957,18 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         return result
 
     finally:
-        driver.quit()
+        try:
+            if hasattr(driver, 'browser_pid'):
+                pid = driver.browser_pid
+                driver.quit()
+                try:
+                    __import__('os').kill(pid, __import__('signal').SIGTERM)
+                except Exception:
+                    pass
+            else:
+                driver.quit()
+        except Exception:
+            pass
 
 
 def extract_flight_info_from_web(text: str, lastname: str) -> dict:
@@ -712,17 +1023,76 @@ def extract_flight_info_from_web(text: str, lastname: str) -> dict:
         fn = re.sub(r'AI\s*', 'AI ', fn)
         info['flight_number'] = fn.strip()
 
-    # Flight Date: "27 Apr 2026" or "27 Apr, 2026" or "2026-04-27"
-    date_match = re.search(r'(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec),?\s*(\d{2,4})', text, re.IGNORECASE)
-    if date_match:
-        try:
-            day, mon, year = date_match.group(1), date_match.group(2), date_match.group(3)
+    # Flight Date: Look for dates in flight context, NOT date of birth
+    # Air India shows: "03 OCT" or "TUE, 28 APR 26" or "27 Apr 2026"
+    # DOB is shown as "Date of Birth\n06 Apr 1997" — we must skip dates near "Date of Birth"
+    lines = text.split('\n')
+    current_year = datetime.now().year
+
+    # Strategy 1: Look for short date format near flight info ("03 OCT", "28 APR")
+    # These appear in the booking details section, not DOB
+    for i, line in enumerate(lines):
+        line_stripped = line.strip()
+        # Match "DD MON" without year (Air India's flight date format)
+        short_date = re.match(r'^(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$', line_stripped, re.IGNORECASE)
+        if short_date:
+            # Check this isn't near "Date of Birth" (within 2 lines)
+            nearby_text = ' '.join(lines[max(0, i-2):i]).lower()
+            if 'date of birth' in nearby_text or 'dob' in nearby_text:
+                continue
+            day, mon = short_date.group(1), short_date.group(2)
+            # Assume current year or next year
+            try:
+                dt = datetime.strptime(f'{day} {mon} {current_year}', '%d %b %Y')
+                if dt < datetime.now() - timedelta(days=180):
+                    dt = dt.replace(year=current_year + 1)
+                info['flight_date'] = dt.strftime('%Y-%m-%d')
+                break
+            except Exception:
+                continue
+
+    # Strategy 2: Look for "DAY, DD MON YY" format (e.g., "TUE, 28 APR 26")
+    if not info['flight_date']:
+        for i, line in enumerate(lines):
+            m = re.search(r'(?:MON|TUE|WED|THU|FRI|SAT|SUN),?\s+(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:,?\s+(\d{2,4}))?', line, re.IGNORECASE)
+            if m:
+                nearby_text = ' '.join(lines[max(0, i-2):i]).lower()
+                if 'date of birth' in nearby_text or 'dob' in nearby_text:
+                    continue
+                day, mon = m.group(1), m.group(2)
+                year = m.group(3) if m.group(3) else str(current_year)
+                if len(year) == 2:
+                    year = '20' + year
+                try:
+                    dt = datetime.strptime(f'{day} {mon} {year}', '%d %b %Y')
+                    # Skip if year is more than 5 years in the past (likely DOB)
+                    if dt.year < current_year - 5:
+                        continue
+                    info['flight_date'] = dt.strftime('%Y-%m-%d')
+                    break
+                except Exception:
+                    continue
+
+    # Strategy 3: Full date with year ("27 Apr 2026") — skip if near DOB
+    if not info['flight_date']:
+        for m in re.finditer(r'(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec),?\s*(\d{2,4})', text, re.IGNORECASE):
+            day, mon, year = m.group(1), m.group(2), m.group(3)
             if len(year) == 2:
                 year = '20' + year
-            dt = datetime.strptime(f'{day} {mon} {year}', '%d %b %Y')
-            info['flight_date'] = dt.strftime('%Y-%m-%d')
-        except Exception:
-            pass
+            try:
+                dt = datetime.strptime(f'{day} {mon} {year}', '%d %b %Y')
+                # Skip dates more than 5 years in the past (DOB)
+                if dt.year < current_year - 5:
+                    continue
+                # Check if this is near "Date of Birth" context
+                pos = m.start()
+                before_text = text[max(0, pos - 100):pos].lower()
+                if 'date of birth' in before_text or 'dob' in before_text:
+                    continue
+                info['flight_date'] = dt.strftime('%Y-%m-%d')
+                break
+            except Exception:
+                continue
 
     if not info['flight_date']:
         # Try ISO format
@@ -793,31 +1163,313 @@ def extract_booking_detail(text):
     return ' | '.join(details[:8]) if details else ''
 
 
-def check_pnr_status(pnr, lastname):
+def _try_check_pnr_playwright(pnr, lastname, attempt=1):
+    """
+    Check Air India PNR using Playwright + persistent Chrome CDP.
+    This connects to a real Chrome instance (launched via chrome_launcher.py)
+    that has real browsing fingerprints, cookies, and session data.
+    Much harder for Imperva WAF to detect as a bot.
+    """
+    import chrome_launcher
+    from playwright.sync_api import sync_playwright
+
+    logger.info(f"[AI-PW Attempt {attempt}/{MAX_RETRIES}] Checking PNR: {pnr} via Playwright CDP")
+
+    chrome_launcher.ensure_chrome_running()
+    pw = sync_playwright().start()
+    browser = None
+    page = None
+    try:
+        try:
+            browser = pw.chromium.connect_over_cdp("http://localhost:9224")
+        except Exception as e:
+            pw.stop()
+            raise Exception(f"Could not connect to Chrome on port 9224: {e}") from e
+
+        context = browser.contexts[0] if browser.contexts else browser.new_context()
+        page = context.new_page()
+
+        # Navigate to manage booking page
+        logger.info("Navigating to manage booking page...")
+        page.goto(AIRINDIA_URL, wait_until='domcontentloaded', timeout=60000)
+        _human_delay(5.0, 9.0)
+
+        # Check if page got blocked
+        page_text = page.inner_text('body').lower()
+        if 'incapsula incident' in page_text or 'request unsuccessful' in page_text or 'access denied' in page_text:
+            raise Exception("Imperva WAF blocked the page load")
+
+        # Dismiss cookie banner
+        try:
+            cookie_btn = page.locator('#onetrust-accept-btn-handler')
+            if cookie_btn.is_visible(timeout=3000):
+                cookie_btn.click()
+                logger.info("Dismissed cookie banner")
+                _human_delay(0.5, 1.0)
+        except Exception:
+            pass
+
+        # Fill the form using JS native setter (avoids Angular Material overlay blocking clicks)
+        try:
+            page.evaluate(f"""
+                (function() {{
+                    var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                    
+                    var pnrEl = document.querySelector("input[name='pnr-ip']");
+                    var lnEl = document.querySelector("input[name='lastname-ip']");
+                    
+                    if (pnrEl) {{
+                        pnrEl.focus();
+                        nativeSetter.call(pnrEl, '');
+                        pnrEl.dispatchEvent(new Event('input', {{bubbles: true}}));
+                        nativeSetter.call(pnrEl, '{pnr}');
+                        pnrEl.dispatchEvent(new Event('input', {{bubbles: true}}));
+                        pnrEl.dispatchEvent(new Event('change', {{bubbles: true}}));
+                        pnrEl.dispatchEvent(new Event('blur', {{bubbles: true}}));
+                    }}
+                    
+                    if (lnEl) {{
+                        lnEl.focus();
+                        nativeSetter.call(lnEl, '');
+                        lnEl.dispatchEvent(new Event('input', {{bubbles: true}}));
+                        nativeSetter.call(lnEl, '{lastname}');
+                        lnEl.dispatchEvent(new Event('input', {{bubbles: true}}));
+                        lnEl.dispatchEvent(new Event('change', {{bubbles: true}}));
+                        lnEl.dispatchEvent(new Event('blur', {{bubbles: true}}));
+                    }}
+                }})();
+            """)
+            _human_delay(0.5, 1.0)
+            
+            # Verify form values
+            pnr_val = page.locator("input[name='pnr-ip']").input_value()
+            ln_val = page.locator("input[name='lastname-ip']").input_value()
+            logger.info(f"Form filled: PNR='{pnr_val}', LastName='{ln_val}'")
+            
+            if pnr_val != pnr or ln_val.lower() != lastname.lower():
+                raise Exception(f"Form fill mismatch: PNR='{pnr_val}', LastName='{ln_val}'")
+        except Exception as e:
+            raise Exception(f"Could not fill form: {e}")
+
+        _human_delay(0.3, 0.8)
+
+        # Click submit
+        try:
+            submit_btn = page.locator("button.form-btn.booking-flight-btn, button.bi-submit-btn, button[type='submit']").first
+            submit_btn.scroll_into_view_if_needed()
+            _human_delay(0.2, 0.5)
+            submit_btn.click()
+            logger.info("Clicked submit button")
+        except Exception:
+            # JS click fallback
+            page.evaluate("""
+                var btn = document.querySelector('button.form-btn.booking-flight-btn') || 
+                          document.querySelector('button.bi-submit-btn') || 
+                          document.querySelector('button[type="submit"]');
+                if (btn) btn.click();
+            """)
+            logger.info("Clicked submit via JS fallback")
+
+        # Save pre-result screenshot
+        screenshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'screenshots')
+        os.makedirs(screenshots_dir, exist_ok=True)
+
+        # Wait for results
+        result_keywords = ['error', 'terminal', 'invalid', 'not found', 'cancelled',
+                           'confirmed', 'itinerary', 'seat', 'payment failed', 'payment',
+                           'booking cannot be found', 'search for a booking',
+                           'booking not found', 'manage your booking', 'your booking']
+        start_time = time.time()
+        final_text = ""
+        while time.time() - start_time < 45:
+            try:
+                final_text = page.inner_text('body')
+                text_lower = final_text.lower()
+                if 'incapsula incident' in text_lower or 'request unsuccessful' in text_lower:
+                    raise Exception("Imperva WAF blocked the API call after form submit")
+                if any(kw in text_lower for kw in result_keywords) and len(final_text) > 100:
+                    time.sleep(1.5)
+                    final_text = page.inner_text('body')
+                    break
+            except Exception as e:
+                if 'Imperva' in str(e):
+                    raise
+            time.sleep(0.5)
+
+        text_lower = final_text.lower()
+
+        # Save screenshot and raw text
+        screenshot_path = os.path.join(screenshots_dir, f'AI_{pnr}_status.png')
+        page.screenshot(path=screenshot_path)
+        logger.info(f"Screenshot saved: {screenshot_path}")
+        raw_dir = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(raw_dir, f'AI_{pnr}_raw.txt'), 'w') as f:
+            f.write(final_text)
+
+        # Check for form validation errors → form fill failed
+        if 'pnr is required' in text_lower or 'last name is required' in text_lower:
+            raise Exception("Form validation errors detected — form fields not filled correctly")
+
+        # Parse the status using the same logic
+        return _parse_status(pnr, lastname, final_text, text_lower)
+
+    except Exception as e:
+        logger.error(f"Playwright check error: {e}")
+        raise
+    finally:
+        # Close the tab we opened (and any extras) so no windows remain visible
+        if page:
+            try:
+                page.close()
+            except Exception:
+                pass
+        # Close any extra tabs that were spawned, keep only one blank tab
+        if browser:
+            try:
+                for ctx in browser.contexts:
+                    pages = ctx.pages
+                    for p in pages:
+                        try:
+                            p.goto('about:blank')
+                        except Exception:
+                            pass
+                browser.disconnect()
+            except Exception:
+                pass
+        pw.stop()
+
+
+def _parse_status(pnr, lastname, page_text, text_lower):
+    """Parse the page text into a status result dict. Shared between Selenium and Playwright paths."""
+    result = {'status': 'Error', 'detail': '', 'raw_text': page_text}
+
+    # ----- CLEAR STATUSES (no proximity check needed) -----
+    # Payment failures
+    if any(phrase in text_lower for phrase in [
+        'payment failed', 'payment unsuccessful', 'payment has failed',
+        'transaction failed', 'payment was not successful',
+        'booking has been cancelled due to payment',
+        'cancelled due to non-payment',
+    ]):
+        result['status'] = 'Cancelled'
+        result['detail'] = 'Payment failed — booking was not completed.'
+
+    # Payment pending
+    elif 'payment for this booking is incomplete' in text_lower or 'payment is incomplete' in text_lower:
+        result['status'] = 'Payment Pending'
+        result['detail'] = 'Payment incomplete — ticket not confirmed.'
+
+    # Not found / Invalid
+    elif 'booking not found' in text_lower:
+        result['status'] = 'Not Found'
+        result['detail'] = 'Booking not found on Air India. The PNR may have expired, been cancelled, or is a codeshare booking.'
+    elif any(phrase in text_lower for phrase in [
+        'pnr is not valid', 'invalid pnr', 'pnr not found',
+    ]):
+        result['status'] = 'Not Found'
+        result['detail'] = 'PNR is not valid on Air India.'
+    elif any(phrase in text_lower for phrase in [
+        'booking cannot be found', 'no booking found', 'no record',
+        'unable to fetch details', 'unable to verify your details',
+    ]):
+        result['status'] = 'Not Found'
+        result['detail'] = 'Booking not found on Air India. Please check the PNR and last name.'
+
+    # WAF blocks
+    elif 'access denied' in text_lower or 'incapsula' in text_lower:
+        result['status'] = 'Error'
+        result['detail'] = 'Air India website blocked the request. Will retry later.'
+
+    # ----- PROXIMITY-BASED STATUSES -----
+    elif _keyword_near_pnr('cancelled', pnr, page_text, window=300) or ('cancelled' in text_lower and text_lower.count('cancelled') > 1):
+        result['status'] = 'Cancelled'
+        result['detail'] = extract_status_detail(page_text, 'cancelled')
+    elif _keyword_near_pnr('rescheduled', pnr, page_text, window=300):
+        result['status'] = 'Rescheduled'
+        result['detail'] = extract_status_detail(page_text, 'rescheduled')
+    elif _keyword_near_pnr('delayed', pnr, page_text, window=300):
+        result['status'] = 'Delayed'
+        result['detail'] = extract_status_detail(page_text, 'delayed')
+    elif _keyword_near_pnr('confirmed', pnr, page_text, window=300):
+        result['status'] = 'Confirmed'
+        result['detail'] = extract_booking_detail(page_text)
+
+    # Manage booking page with booking details (confirmed booking)
+    elif ('manage your booking' in text_lower or 'your booking' in text_lower) and pnr.lower() in text_lower:
+        result['status'] = 'Confirmed'
+        result['detail'] = extract_booking_detail(page_text)
+
+    # Generic confirmed keywords
+    elif any(kw in text_lower for kw in [
+        'confirmed', 'booked', 'itinerary', 'e-ticket',
+        'seat selection', 'add-ons', 'check-in', 'checkin'
+    ]):
+        result['status'] = 'Confirmed'
+        result['detail'] = extract_booking_detail(page_text)
+
+    # Soft block — form re-displayed without any result
+    elif 'search for a booking' in text_lower and 'continue' in text_lower:
+        raise Exception("Air India soft-blocked the request (form re-displayed without result). Will retry.")
+
+    # Form still showing — possibly soft block
+    elif 'manage booking' in text_lower and 'booking reference' in text_lower and len(page_text) < 2000:
+        raise Exception("Form still showing after submit — possible soft block")
+
+    else:
+        result['status'] = 'Checked'
+        result['detail'] = page_text[:500] if page_text else 'Could not parse status'
+
+    # Extract flight info for non-error statuses
+    if result['status'] not in ('Not Found', 'Error', 'Cancelled', 'Check Failed'):
+        try:
+            result['flight_info'] = extract_flight_info_from_web(page_text, lastname)
+        except Exception:
+            pass
+
+    return result
+
+
+def _check_pnr_status_internal(pnr, lastname):
     """
     Check Air India PNR status with retries.
-    Each retry creates a fresh browser instance.
+    Strategy: Try Playwright + persistent Chrome CDP first (best anti-bot),
+    then fall back to undetected-chromedriver if Playwright is unavailable.
     """
     last_error = None
+    
+    # Strategy 1: Playwright + persistent Chrome CDP (best anti-bot)
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            result = _try_check_pnr(pnr, lastname, attempt)
-            # If we got Access Denied in the result, treat it as a retryable error
-            if result.get('status') == 'Error' and 'blocked' in result.get('detail', '').lower():
-                raise Exception(result['detail'])
-            return result
+            return _try_check_pnr_playwright(pnr, lastname, attempt)
+        except ImportError as e:
+            logger.warning(f"Playwright not available: {e}. Falling back to Selenium/UC.")
+            break  # Don't retry import errors
         except Exception as e:
             last_error = e
-            logger.warning(f"AI Attempt {attempt}/{MAX_RETRIES} failed for PNR {pnr}: {e}")
+            logger.warning(f"[AI-PW Attempt {attempt}/{MAX_RETRIES}] Failed: {e}")
             if attempt < MAX_RETRIES:
-                # Longer exponential backoff: 30s, 60s, 90s + random jitter
-                wait_secs = attempt * 30 + random.randint(5, 15)
-                logger.info(f"Waiting {wait_secs}s before retry (longer backoff to avoid WAF)...")
+                wait_secs = random.randint(5, 15)
+                logger.info(f"Waiting {wait_secs}s before Playwright retry...")
                 time.sleep(wait_secs)
 
-    logger.error(f"All {MAX_RETRIES} attempts failed for Air India PNR {pnr}: {last_error}")
-    # If all failures were WAF-related, return a friendlier "Check Failed" status
-    # so the user sees this is a temporary website issue, not a booking problem
+    # Strategy 2: Undetected-chromedriver (fallback)
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            return _try_check_pnr(pnr, lastname, attempt)
+        except Exception as e:
+            last_error = e
+            logger.warning(f"[AI-UC Attempt {attempt}/{MAX_RETRIES}] Failed: {e}")
+            if attempt < MAX_RETRIES:
+                err_str = str(e).lower()
+                if any(k in err_str for k in ['target window', 'web view not found', 'form fill', 'form fields not filled', 'validation errors']):
+                    wait_secs = random.randint(3, 8)
+                    logger.info(f"Waiting {wait_secs}s before retry (Chrome crash / form failure)...")
+                else:
+                    wait_secs = attempt * 30 + random.randint(5, 15)
+                    logger.info(f"Waiting {wait_secs}s before retry (longer backoff to avoid WAF)...")
+                time.sleep(wait_secs)
+
+    logger.error(f"All attempts failed for Air India PNR {pnr}: {last_error}")
     err_str = str(last_error).lower()
     if any(k in err_str for k in ['imperva', 'incapsula', 'access denied', 'blocked', 'waf', 'soft-block']):
         return {
@@ -827,22 +1479,72 @@ def check_pnr_status(pnr, lastname):
         }
     return {
         'status': 'Error',
-        'detail': f"Failed after {MAX_RETRIES} attempts: {str(last_error)}",
-        'raw_text': '',
+        'detail': f'Failed after all attempts. Last error: {str(last_error)}'
     }
+
+
+def check_pnr_status(pnr, lastname):
+    """
+    Public entry point to check PNR status.
+    Runs the scraper in a subprocess to isolate undetected_chromedriver from Flask threads,
+    preventing 'target window already closed' and other threading crashes.
+    """
+    import subprocess
+    import json
+    import os
+    import sys
+    
+    script_path = os.path.abspath(__file__)
+    try:
+        logger.info(f"Launching subprocess for Air India PNR: {pnr}")
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        
+        # Run this script directly with PNR and LASTNAME
+        result = subprocess.run(
+            [sys.executable, script_path, pnr, lastname],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=180
+        )
+        
+        if result.returncode != 0:
+            logger.error(f"Subprocess failed with code {result.returncode}:\n{result.stderr}")
+            return {'status': 'Error', 'detail': 'Scraper subprocess failed.'}
+            
+        # Parse output for JSON result
+        for line in result.stdout.split('\n'):
+            if line.startswith('JSON_RESULT:'):
+                try:
+                    return json.loads(line.replace('JSON_RESULT:', '').strip())
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse subprocess output: {e}")
+                    
+        logger.error(f"Could not find JSON_RESULT in subprocess output.\nStdout: {result.stdout}")
+        return {'status': 'Error', 'detail': 'Invalid response from scraper.'}
+        
+    except subprocess.TimeoutExpired:
+        logger.error(f"Subprocess timed out for Air India PNR: {pnr}")
+        return {'status': 'Error', 'detail': 'Scraper timed out.'}
+    except Exception as e:
+        logger.error(f"Failed to launch subprocess: {e}")
+        return {'status': 'Error', 'detail': str(e)}
 
 
 if __name__ == '__main__':
     import sys
     logging.basicConfig(level=logging.INFO)
-    if len(sys.argv) >= 3:
+    if len(sys.argv) == 3:
         pnr = sys.argv[1]
         lastname = sys.argv[2]
-        print(f"Checking Air India PNR: {pnr} with last name: {lastname}")
-        result = check_pnr_status(pnr, lastname)
-        print(f"\nStatus: {result['status']}")
-        print(f"Detail: {result['detail']}")
-        if 'flight_info' in result:
-            print(f"Flight Info: {result['flight_info']}")
+        
+        # We must disable logging to stdout so it doesn't mess up JSON output, 
+        # or we just ensure JSON_RESULT is on its own line and everything else is fine.
+        result = _check_pnr_status_internal(pnr, lastname)
+        
+        # Print magic string for subprocess to parse
+        import json
+        print(f"\nJSON_RESULT:{json.dumps(result)}")
     else:
         print("Usage: python scraper_airindia.py <PNR> <LASTNAME>")
