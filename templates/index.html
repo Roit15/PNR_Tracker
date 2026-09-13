@@ -13,7 +13,8 @@
 {% macro airline_badge(airline) %}
 {% set badge_class = 'badge-akasaair' if airline == 'akasaair' else ('badge-etihad' if airline == 'etihad' else ('badge-airindia' if airline == 'airindia' else ('badge-vietjet' if airline == 'vietjet' else ('badge-singaporeair' if airline == 'singaporeair' else ('badge-thaiairways' if airline == 'thaiairways' else ('badge-srilankan' if airline == 'srilankan' else 'badge-indigo')))))) %}
 {% set airline_code = 'QP' if airline == 'akasaair' else ('EY' if airline == 'etihad' else ('AI' if airline == 'airindia' else ('VJ' if airline == 'vietjet' else ('SQ' if airline == 'singaporeair' else ('TG' if airline == 'thaiairways' else ('UL' if airline == 'srilankan' else '6E')))))) %}
-<div class="airline-badge {{ badge_class }}" title="{{ airline|title }}">
+{% set airline_name = 'Akasa Air' if airline == 'akasaair' else ('Etihad' if airline == 'etihad' else ('Air India' if airline == 'airindia' else ('VietJet' if airline == 'vietjet' else ('Singapore Airlines' if airline == 'singaporeair' else ('Thai Airways' if airline == 'thaiairways' else ('SriLankan' if airline == 'srilankan' else 'Indigo')))))) %}
+<div class="airline-badge {{ badge_class }}" title="{{ airline_name }}">
     <img src="https://pics.avs.io/200/200/{{ airline_code }}.png" class="airline-logo-img" alt="{{ airline_code }}">
     <span class="badge-code">{{ airline_code }}</span>
 </div>
@@ -29,7 +30,7 @@
                 <div class="logo-mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg></div>
                 <div>
                     <h1>PNR Tracker</h1>
-                    <p class="subtitle">Multi-Airline Flight Status Monitor</p>
+                    <p class="subtitle">Monitor your flights</p>
                 </div>
             </div>
             <div class="header-actions">
@@ -40,6 +41,10 @@
                 <!-- Check All button (shown when idle) -->
                 <form action="{{ url_for('check_now') }}" method="POST" class="inline-form" id="check-all-form"
                       style="{{ 'display:none' if check_running else '' }}">
+                    <button type="button" class="btn btn-outline" id="check-selected-btn" onclick="checkSelectedPnrs()" disabled>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        <span>Check Selected</span>
+                    </button>
                     <button type="button" class="btn btn-glow" id="check-now-btn" onclick="confirmCheckAll()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
                         <span>Check All</span>
@@ -75,18 +80,57 @@
 
     <main class="container">
 
-        <!-- AI Insights Section -->
-        <section class="card ai-insights-card" id="ai-insights-section" style="display: none;">
-            <div class="ai-header">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ai-icon"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                <h2>AI Insights</h2>
-            </div>
-            <div class="ai-content" id="ai-insights-content">
-                <p class="ai-loading">Generating insights...</p>
-            </div>
-        </section>
+        <!-- ============================================
+             MOBILE: Search + Actions + Filters + Attention
+             ============================================ -->
 
-        <!-- Add Booking — Tabbed Section -->
+        <!-- Mobile Search -->
+        <div class="mobile-search-wrap" id="mobile-search-wrap">
+            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" class="mobile-search-input" id="mobile-search-input" placeholder="Search PNR, passenger or route..." autocomplete="off" aria-label="Search bookings">
+        </div>
+
+        <!-- Mobile Primary Actions -->
+        <div class="mobile-primary-actions" id="mobile-primary-actions">
+            <button type="button" class="btn-add-booking" id="mobile-add-booking-btn" onclick="openAddBookingSheet()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Add Booking
+            </button>
+            <button type="button" class="btn-check-selected" id="mobile-check-selected-btn" onclick="checkSelectedPnrs()" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+                Check
+            </button>
+        </div>
+
+        <!-- Status Filter Pills -->
+        <div class="status-filter-pills" id="status-filter-pills">
+            <button class="filter-pill active" data-filter="all" onclick="filterBookings('all')">
+                All <span class="pill-count" id="count-all">{{ bookings|length }}</span>
+            </button>
+            <button class="filter-pill" data-filter="confirmed" onclick="filterBookings('confirmed')">
+                Confirmed <span class="pill-count" id="count-confirmed">0</span>
+            </button>
+            <button class="filter-pill" data-filter="issues" onclick="filterBookings('issues')">
+                Issues <span class="pill-count" id="count-issues">0</span>
+            </button>
+            <button class="filter-pill" data-filter="completed" onclick="filterBookings('completed')">
+                Completed <span class="pill-count" id="count-completed">{{ completed|length if completed else 0 }}</span>
+            </button>
+        </div>
+
+        <!-- Needs Attention Banner -->
+        <div class="needs-attention-banner" id="needs-attention-banner" onclick="filterBookings('issues')">
+            <div class="attention-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            </div>
+            <div class="attention-text">
+                <div class="attention-title">Needs Attention</div>
+                <div class="attention-subtitle" id="attention-count">0 bookings require action</div>
+            </div>
+            <svg class="attention-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </div>
+
+        <!-- Add Booking — Tabbed Section (Desktop only) -->
         <section class="card" id="add-section">
             <div class="tab-bar">
                 <button class="tab active" data-tab="upload-tab" id="tab-upload">
@@ -122,71 +166,38 @@
             <!-- Manual Tab -->
             <div class="tab-content" id="manual-tab">
                 <form action="{{ url_for('add_manual') }}" method="POST" id="manual-form">
-                    <div class="section-label">Select Airline</div>
-                    <div class="airline-grid" id="airline-selector">
-                        <label class="airline-card-option">
+                    <div class="airline-selector" id="airline-selector">
+                        <label class="airline-option">
                             <input type="radio" name="airline" value="indigo" checked>
-                            <div class="airline-card-inner">
-                                <img src="https://pics.avs.io/200/200/6E.png" width="36" height="36" class="airline-logo-img" alt="IndiGo">
-                                <span class="airline-card-name">IndiGo</span>
-                                <span class="airline-card-code">6E</span>
-                            </div>
+                            <span class="airline-chip airline-indigo">IndiGo <span class="airline-code">6E</span></span>
                         </label>
-                        <label class="airline-card-option">
+                        <label class="airline-option">
                             <input type="radio" name="airline" value="airindia">
-                            <div class="airline-card-inner">
-                                <img src="https://pics.avs.io/200/200/AI.png" width="36" height="36" class="airline-logo-img" alt="Air India">
-                                <span class="airline-card-name">Air India</span>
-                                <span class="airline-card-code">AI</span>
-                            </div>
+                            <span class="airline-chip airline-airindia">Air India <span class="airline-code">AI</span></span>
                         </label>
-                        <label class="airline-card-option">
+                        <label class="airline-option">
                             <input type="radio" name="airline" value="vietjet">
-                            <div class="airline-card-inner">
-                                <img src="https://pics.avs.io/200/200/VJ.png" width="36" height="36" class="airline-logo-img" alt="VietJet">
-                                <span class="airline-card-name">VietJet</span>
-                                <span class="airline-card-code">VJ</span>
-                            </div>
+                            <span class="airline-chip airline-vietjet">VietJet <span class="airline-code">VJ</span></span>
                         </label>
-                        <label class="airline-card-option">
+                        <label class="airline-option">
                             <input type="radio" name="airline" value="singaporeair">
-                            <div class="airline-card-inner">
-                                <img src="https://pics.avs.io/200/200/SQ.png" width="36" height="36" class="airline-logo-img" alt="Singapore">
-                                <span class="airline-card-name">Singapore</span>
-                                <span class="airline-card-code">SQ</span>
-                            </div>
+                            <span class="airline-chip airline-singaporeair">Singapore Airlines <span class="airline-code">SQ</span></span>
                         </label>
-                        <label class="airline-card-option">
+                        <label class="airline-option">
                             <input type="radio" name="airline" value="akasaair">
-                            <div class="airline-card-inner">
-                                <img src="https://pics.avs.io/200/200/QP.png" width="36" height="36" class="airline-logo-img" alt="Akasa Air">
-                                <span class="airline-card-name">Akasa Air</span>
-                                <span class="airline-card-code">QP</span>
-                            </div>
+                            <span class="airline-chip airline-akasaair">Akasa Air <span class="airline-code">QP</span></span>
                         </label>
-                        <label class="airline-card-option">
+                        <label class="airline-option">
                             <input type="radio" name="airline" value="etihad">
-                            <div class="airline-card-inner">
-                                <img src="https://pics.avs.io/200/200/EY.png" width="36" height="36" class="airline-logo-img" alt="Etihad">
-                                <span class="airline-card-name">Etihad</span>
-                                <span class="airline-card-code">EY</span>
-                            </div>
+                            <span class="airline-chip airline-etihad">Etihad <span class="airline-code">EY</span></span>
                         </label>
-                        <label class="airline-card-option">
+                        <label class="airline-option">
                             <input type="radio" name="airline" value="thaiairways">
-                            <div class="airline-card-inner">
-                                <img src="https://pics.avs.io/200/200/TG.png" width="36" height="36" class="airline-logo-img" alt="Thai Airways">
-                                <span class="airline-card-name">Thai Airways</span>
-                                <span class="airline-card-code">TG</span>
-                            </div>
+                            <span class="airline-chip airline-thaiairways">Thai Airways <span class="airline-code">TG</span></span>
                         </label>
-                        <label class="airline-card-option">
+                        <label class="airline-option">
                             <input type="radio" name="airline" value="srilankan">
-                            <div class="airline-card-inner">
-                                <img src="https://pics.avs.io/200/200/UL.png" width="36" height="36" class="airline-logo-img" alt="SriLankan">
-                                <span class="airline-card-name">SriLankan</span>
-                                <span class="airline-card-code">UL</span>
-                            </div>
+                            <span class="airline-chip airline-srilankan">SriLankan <span class="airline-code">UL</span></span>
                         </label>
                     </div>
                     <div class="form-row">
@@ -229,32 +240,61 @@
                 <span class="count-badge">{{ bookings|length }}</span>
             </div>
 
+            <div class="bulk-actions-bar" id="bulk-actions-bar" style="display: none;">
+                <span class="bulk-count" id="bulk-count">0 selected</span>
+                <div class="bulk-buttons">
+                    <form action="{{ url_for('bulk_action') }}" method="POST" id="bulk-form">
+                        <input type="hidden" name="action" id="bulk-action-type">
+                        <button type="button" class="btn btn-secondary" onclick="submitBulk('refresh')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+                            Refresh Selected
+                        </button>
+                        <button type="button" class="btn btn-danger" onclick="submitBulk('delete')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            Delete Selected
+                        </button>
+                    </form>
+                </div>
+            </div>
+
             {% if bookings %}
             <!-- Desktop Table -->
             <div class="table-wrapper">
                 <table class="bookings-table" id="bookings-table">
                     <thead>
                         <tr>
-                            <th class="sortable" data-col="0" onclick="sortTable(0)">PNR <span class="sort-label">↕</span></th>
-                            <th class="sortable" data-col="1" onclick="sortTable(1)">Flight <span class="sort-label">↕</span></th>
-                            <th class="sortable" data-col="2" onclick="sortTable(2)">Route <span class="sort-label">↕</span></th>
-                            <th class="sortable" data-col="3" onclick="sortTable(3)">Date <span class="sort-label">↕</span></th>
-                            <th class="sortable" data-col="4" onclick="sortTable(4)">Departure <span class="sort-label">↕</span></th>
-                            <th class="sortable" data-col="5" onclick="sortTable(5)">Status <span class="sort-label">↕</span></th>
-                            <th class="sortable" data-col="6" onclick="sortTable(6)">Checked <span class="sort-label">↕</span></th>
+                            <th class="checkbox-col">
+                                <label class="custom-checkbox">
+                                    <input type="checkbox" id="select-all" onclick="toggleSelectAll()">
+                                    <span class="checkmark"></span>
+                                </label>
+                            </th>
+                            <th class="sortable" data-col="1" onclick="sortTable(1)">PNR <span class="sort-label">↕</span></th>
+                            <th class="sortable" data-col="2" onclick="sortTable(2)">Flight <span class="sort-label">↕</span></th>
+                            <th class="sortable" data-col="3" onclick="sortTable(3)">Route <span class="sort-label">↕</span></th>
+                            <th class="sortable" data-col="4" onclick="sortTable(4)">Date <span class="sort-label">↕</span></th>
+                            <th class="sortable" data-col="5" onclick="sortTable(5)">Departure <span class="sort-label">↕</span></th>
+                            <th class="sortable" data-col="6" onclick="sortTable(6)">Status <span class="sort-label">↕</span></th>
+                            <th class="sortable" data-col="7" onclick="sortTable(7)">Checked <span class="sort-label">↕</span></th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for booking in bookings %}
-                        <tr class="booking-row {{ 'has-detail' if booking.status_detail }}" data-detail-id="detail-{{ booking.id }}" onclick="toggleDetail('detail-{{ booking.id }}')">
+                        <tr class="booking-row {{ 'has-detail' if booking.status_detail }}" data-detail-id="detail-{{ booking.id }}" data-status="{{ booking.status }}" onclick="toggleDetail('detail-{{ booking.id }}')">
+                            <td class="checkbox-cell" onclick="event.stopPropagation()">
+                                <label class="custom-checkbox">
+                                    <input type="checkbox" name="selected_pnrs" value="{{ booking.id }}" class="row-checkbox" onchange="updateBulkActions()">
+                                    <span class="checkmark"></span>
+                                </label>
+                            </td>
                             <td data-sort-key="{{ booking.pnr }}">
                                 <div class="pnr-cell">
                                     {{ airline_badge(booking.airline) }}
                                     <span class="pnr-code">{{ booking.pnr }}</span>
                                     <span class="passenger-name">{{ booking.passenger_name }}</span>
                                     {% if booking.passenger_count %}
-                                    <span class="passenger-count-badge" title="Passenger count"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> {{ booking.passenger_count }}</span>
+                                    <span class="passenger-count-badge" title="Passenger count">{{ booking.passenger_count }} pax</span>
                                     {% endif %}
                                 </div>
                             </td>
@@ -263,7 +303,7 @@
                                 <span class="route-badge">{{ booking.route or '—' }}</span>
                                 {% if booking.pnr in trip_links %}
                                 <span class="trip-badge trip-{{ trip_links[booking.pnr].direction }}" title="Round Trip — {{ 'Outbound' if trip_links[booking.pnr].direction == 'outbound' else 'Return' }} · Paired with {{ trip_links[booking.pnr].paired_pnr }} ({{ trip_links[booking.pnr].paired_route }})">
-                                    {{ 'OUT' if trip_links[booking.pnr].direction == 'outbound' else 'RET' }} RT
+                                    {{ '✈→' if trip_links[booking.pnr].direction == 'outbound' else '↩' }} RT
                                 </span>
                                 {% endif %}
                             </td>
@@ -292,8 +332,8 @@
                         </tr>
                         {% if booking.status_detail %}
                         <tr class="status-detail-row" id="detail-{{ booking.id }}">
-                            <td colspan="8">
-                                <span class="status-detail-text"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>{{ booking.status_detail }}</span>
+                            <td colspan="9">
+                                <span class="status-detail-text">{{ booking.status_detail }}</span>
                             </td>
                         </tr>
                         {% endif %}
@@ -302,86 +342,70 @@
                 </table>
             </div>
 
-            <!-- Mobile Cards (hidden on desktop, shown on mobile via CSS) -->
-            <div class="mobile-cards">
+            <!-- Mobile Cards — Redesigned v2 -->
+            <div class="mobile-cards" id="mobile-booking-list">
                 {% for booking in bookings %}
-                <div class="flight-card status-border-{{ booking.status|lower|replace(' ', '-') }}">
-                    <div class="flight-card-top">
-                        <div class="fc-pnr">
+                <div class="booking-card-v2"
+                     data-pnr="{{ booking.pnr }}"
+                     data-passenger="{{ booking.passenger_name }}"
+                     data-route="{{ booking.route or '' }}"
+                     data-status="{{ booking.status }}"
+                     data-flight-date="{{ booking.flight_date or '' }}"
+                     data-departure-time="{{ booking.departure_time or '' }}"
+                     data-arrival-time="{{ booking.arrival_time or '' }}"
+                     data-flight-number="{{ booking.flight_number or '' }}"
+                     data-airline="{{ booking.airline }}"
+                     data-booking-id="{{ booking.id }}"
+                     data-last-checked="{{ booking.last_checked or '' }}"
+                     data-last-checked-ago="{{ booking.last_checked|time_ago }}"
+                     data-status-detail="{{ booking.status_detail or '' }}"
+                     data-passenger-count="{{ booking.passenger_count or 1 }}"
+                     onclick="openPnrDetails(this)"
+                     role="button"
+                     tabindex="0"
+                     aria-label="Booking {{ booking.pnr }} – {{ booking.status }}">
+                    <!-- Line 1: Airline + PNR + Status -->
+                    <div class="card-v2-line1">
+                        <div class="card-v2-pnr-group">
                             {{ airline_badge(booking.airline) }}
-                            <span class="pnr-code">{{ booking.pnr }}</span>
-                            <span class="passenger-name">{{ booking.passenger_name }}</span>
-                            {% if booking.passenger_count %}
-                            <span class="passenger-count-badge" title="Passenger count">&lt;svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"&gt;&lt;path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/&gt;&lt;circle cx="12" cy="7" r="4"/&gt;&lt;/svg&gt; {{ booking.passenger_count }}</span>
-                            {% endif %}
+                            <span class="card-v2-pnr">{{ booking.pnr }}</span>
                         </div>
                         <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">{{ booking.status }}</span>
                     </div>
-
-                    <div class="flight-card-body">
-                        <div class="fc-route">
-                            {% if booking.route and '—' not in (booking.route or '—') %}
-                            {% set cities = booking.route.split('-') %}
-                            <div class="fc-city">
-                                <span class="city-code">{{ cities[0] if cities|length > 0 else '—' }}</span>
-                            </div>
-                            <div class="fc-line">
-                                <div class="fc-flight-num">{{ booking.flight_number or '' }}</div>
-                                <div class="route-line">
-                                    <span class="dot"></span>
-                                    <span class="line"></span>
-                                    <svg class="plane-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
-                                    <span class="line"></span>
-                                    <span class="dot"></span>
-                                </div>
-                            </div>
-                            <div class="fc-city">
-                                <span class="city-code">{{ cities[1] if cities|length > 1 else '—' }}</span>
-                            </div>
+                    <!-- Line 2: Route -->
+                    <div class="card-v2-route">
+                        {% if booking.route %}
+                            {% set parts = booking.route.split('-') %}
+                            {% if parts|length == 2 %}
+                                {{ parts[0] }} <span class="route-arrow">→</span> {{ parts[1] }}
                             {% else %}
-                            <div class="fc-noroute">{{ booking.flight_number or 'No route' }}</div>
+                                {{ booking.route }}
                             {% endif %}
-                        </div>
-                        {% if booking.pnr in trip_links %}
-                        <div class="fc-trip-link">
-                            <span class="trip-badge trip-{{ trip_links[booking.pnr].direction }}">
-                                {{ 'OUT' if trip_links[booking.pnr].direction == 'outbound' else 'RET' }} Round Trip
-                            </span>
-                            <span class="trip-paired">{{ trip_links[booking.pnr].paired_route }} · {{ trip_links[booking.pnr].paired_pnr }}</span>
-                        </div>
+                        {% else %}
+                            —
                         {% endif %}
-                        <div class="fc-meta">
-                            <div class="fc-meta-item">
-                                <span class="meta-label">Date</span>
-                                <span class="meta-value">{{ booking.flight_date|format_date }}</span>
-                            </div>
-                            <div class="fc-meta-item">
-                                <span class="meta-label">Departure</span>
-                                <span class="meta-value">{{ booking.departure_time or '—' }}</span>
-                            </div>
-                            <div class="fc-meta-item">
-                                <span class="meta-label">Checked</span>
-                                <span class="meta-value meta-muted">{{ booking.last_checked|time_ago }}</span>
-                            </div>
-                        </div>
-                        {% if booking.status_detail %}
-                        <button class="fc-detail-toggle" onclick="this.nextElementSibling.classList.toggle('show')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:3px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>View details</button>
-                        <div class="fc-detail">{{ booking.status_detail }}</div>
+                        {% if booking.pnr in trip_links %}
+                        <span class="card-v2-trip-badge trip-{{ trip_links[booking.pnr].direction }}">RT</span>
                         {% endif %}
                     </div>
-
-                    <div class="fc-actions">
-                        <form action="{{ url_for('check_single', booking_id=booking.id) }}" method="POST" class="inline-form"
-                              onsubmit="this.querySelector('button').classList.add('is-loading'); this.querySelector('button').textContent='Checking...';">
-                            <button type="submit" class="fc-btn fc-btn-check">Refresh Status</button>
-                        </form>
-                        <form action="{{ url_for('delete', booking_id=booking.id) }}" method="POST" class="inline-form"
-                              onsubmit="return confirm('Remove this booking?')">
-                            <button type="submit" class="fc-btn fc-btn-delete">Remove</button>
-                        </form>
+                    <!-- Line 3: Date + Time -->
+                    <div class="card-v2-datetime">
+                        {{ booking.flight_date|format_date }}{% if booking.departure_time %}<span class="dt-separator">·</span>{{ booking.departure_time }}{% endif %}
+                    </div>
+                    <!-- Line 4: Passenger + Chevron -->
+                    <div class="card-v2-line4">
+                        <span class="card-v2-passenger">{{ booking.passenger_name }}{% if booking.passenger_count and booking.passenger_count > 1 %} · {{ booking.passenger_count }} pax{% endif %}</span>
+                        <svg class="card-v2-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </div>
                 </div>
                 {% endfor %}
+
+                <!-- No results message (hidden by default) -->
+                <div class="mobile-no-results" id="mobile-no-results">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <h3>No bookings found</h3>
+                    <p>Try a different PNR, passenger name or route</p>
+                </div>
             </div>
 
             {% else %}
@@ -428,7 +452,7 @@
                                         <span class="pnr-code">{{ booking.pnr }}</span>
                                         <span class="passenger-name">{{ booking.passenger_name }}</span>
                                         {% if booking.passenger_count %}
-                                        <span class="passenger-count-badge" title="Passenger count">&lt;svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"&gt;&lt;path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/&gt;&lt;circle cx="12" cy="7" r="4"/&gt;&lt;/svg&gt; {{ booking.passenger_count }}</span>
+                                        <span class="passenger-count-badge" title="Passenger count">{{ booking.passenger_count }} pax</span>
                                         {% endif %}
                                     </div>
                                 </td>
@@ -437,7 +461,7 @@
                                     <span class="route-badge">{{ booking.route or '—' }}</span>
                                     {% if booking.pnr in trip_links %}
                                     <span class="trip-badge trip-{{ trip_links[booking.pnr].direction }}" title="Round Trip — {{ 'Outbound' if trip_links[booking.pnr].direction == 'outbound' else 'Return' }} · Paired with {{ trip_links[booking.pnr].paired_pnr }} ({{ trip_links[booking.pnr].paired_route }})">
-                                        {{ 'OUT' if trip_links[booking.pnr].direction == 'outbound' else 'RET' }} RT
+                                        {{ '✈→' if trip_links[booking.pnr].direction == 'outbound' else '↩' }} RT
                                     </span>
                                     {% endif %}
                                 </td>
@@ -453,40 +477,54 @@
                     </table>
                 </div>
 
-                <!-- Mobile Cards -->
+                <!-- Mobile Cards — Completed v2 -->
                 <div class="mobile-cards">
                     {% for booking in completed %}
-                    <div class="flight-card completed-card">
-                        <div class="flight-card-top">
-                            <div class="fc-pnr">
+                    <div class="booking-card-v2" style="opacity: 0.6;"
+                         data-pnr="{{ booking.pnr }}"
+                         data-passenger="{{ booking.passenger_name }}"
+                         data-route="{{ booking.route or '' }}"
+                         data-status="{{ booking.status }}"
+                         data-flight-date="{{ booking.flight_date or '' }}"
+                         data-departure-time="{{ booking.departure_time or '' }}"
+                         data-arrival-time="{{ booking.arrival_time or '' }}"
+                         data-flight-number="{{ booking.flight_number or '' }}"
+                         data-airline="{{ booking.airline }}"
+                         data-booking-id="{{ booking.id }}"
+                         data-last-checked="{{ booking.last_checked or '' }}"
+                         data-last-checked-ago="{{ booking.last_checked|time_ago }}"
+                         data-status-detail="{{ booking.status_detail or '' }}"
+                         data-passenger-count="{{ booking.passenger_count or 1 }}"
+                         onclick="openPnrDetails(this)">
+                        <label class="custom-checkbox mobile-card-checkbox" onclick="event.stopPropagation()">
+                            <input type="checkbox" name="selected_pnrs" value="{{ booking.id }}" class="row-checkbox" onchange="updateBulkActions()">
+                            <span class="checkmark"></span>
+                        </label>
+                        <div class="card-v2-line1">
+                            <div class="card-v2-pnr-group">
                                 {{ airline_badge(booking.airline) }}
-                                <span class="pnr-code">{{ booking.pnr }}</span>
-                                <span class="passenger-name">{{ booking.passenger_name }}</span>
-                                {% if booking.passenger_count %}
-                                <span class="passenger-count-badge" title="Passenger count">&lt;svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"&gt;&lt;path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/&gt;&lt;circle cx="12" cy="7" r="4"/&gt;&lt;/svg&gt; {{ booking.passenger_count }}</span>
-                                {% endif %}
+                                <span class="card-v2-pnr">{{ booking.pnr }}</span>
                             </div>
                             <span class="status-badge status-{{ booking.status|lower|replace(' ', '-') }}">{{ booking.status }}</span>
                         </div>
-                        <div class="flight-card-body">
-                            <div class="fc-meta">
-                                <div class="fc-meta-item">
-                                    <span class="meta-label">Flight</span>
-                                    <span class="meta-value">{{ booking.flight_number or '—' }}</span>
-                                </div>
-                                <div class="fc-meta-item">
-                                    <span class="meta-label">Route</span>
-                                    <span class="meta-value">{{ booking.route or '—' }}
-                                        {% if booking.pnr in trip_links %}
-                                        <span class="trip-badge-sm trip-{{ trip_links[booking.pnr].direction }}">{{ 'OUT' if trip_links[booking.pnr].direction == 'outbound' else 'RET' }} RT</span>
-                                        {% endif %}
-                                    </span>
-                                </div>
-                                <div class="fc-meta-item">
-                                    <span class="meta-label">Date</span>
-                                    <span class="meta-value">{{ booking.flight_date|format_date }}</span>
-                                </div>
-                            </div>
+                        <div class="card-v2-route">
+                            {% if booking.route %}
+                                {% set parts = booking.route.split('-') %}
+                                {% if parts|length == 2 %}
+                                    {{ parts[0] }} <span class="route-arrow">→</span> {{ parts[1] }}
+                                {% else %}
+                                    {{ booking.route }}
+                                {% endif %}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </div>
+                        <div class="card-v2-datetime">
+                            {{ booking.flight_date|format_date }}{% if booking.departure_time %}<span class="dt-separator">·</span>{{ booking.departure_time }}{% endif %}
+                        </div>
+                        <div class="card-v2-line4">
+                            <span class="card-v2-passenger">{{ booking.passenger_name }}</span>
+                            <svg class="card-v2-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                         </div>
                     </div>
                     {% endfor %}
@@ -495,128 +533,367 @@
         </section>
         {% endif %}
 
-
+        <!-- How It Works -->
+        <section class="card info-card">
+            <h3 class="section-title" style="margin-bottom: 20px;">How it works</h3>
+            <div class="steps-row">
+                <div class="step-item">
+                    <div class="step-num">1</div>
+                    <strong>Add</strong>
+                    <p>Upload PDF or enter PNR</p>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step-item">
+                    <div class="step-num">2</div>
+                    <strong>Auto-Check</strong>
+                    <p>8 AM & 6 PM IST daily</p>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step-item">
+                    <div class="step-num">3</div>
+                    <strong>Alert</strong>
+                    <p>Email status updates</p>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step-item">
+                    <div class="step-num">4</div>
+                    <strong>Auto-Stop</strong>
+                    <p>Stops after flight date</p>
+                </div>
+            </div>
+        </section>
     </main>
 
     <footer class="footer">
         PNR Tracker • IndiGo · Air India · VietJet · Akasa · Etihad · Singapore · Thai · SriLankan • Auto-checks at 8 AM & 6 PM IST
     </footer>
 
+    <!-- ============================================
+         PNR DETAILS OVERLAY (Mobile)
+         ============================================ -->
+    <div class="pnr-details-overlay" id="pnr-details-overlay">
+        <div class="details-header">
+            <button class="details-back-btn" onclick="closePnrDetails()" aria-label="Go back">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                Back
+            </button>
+            <span class="details-title">PNR Details</span>
+            <div style="width: 44px;"></div>
+        </div>
+        <div class="details-body" id="details-body">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+
+    <!-- ============================================
+         ADD BOOKING SHEET (Mobile)
+         ============================================ -->
+    <div class="add-booking-overlay" id="add-booking-overlay" onclick="closeAddBookingSheet(event)">
+        <div class="add-booking-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-handle"></div>
+            <div class="sheet-header">
+                <h3>Add Booking</h3>
+                <button class="sheet-close-btn" onclick="closeAddBookingSheet()" aria-label="Close">×</button>
+            </div>
+            <div class="sheet-body" id="sheet-body">
+                <!-- Tab bar -->
+                <div class="tab-bar" id="sheet-tab-bar">
+                    <button class="tab active" data-tab="sheet-upload-tab" id="sheet-tab-upload">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+                        Upload PDF
+                    </button>
+                    <button class="tab" data-tab="sheet-manual-tab" id="sheet-tab-manual">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        Enter PNR
+                    </button>
+                </div>
+
+                <!-- Sheet Upload Tab -->
+                <div class="tab-content active" id="sheet-upload-tab">
+                    <form action="{{ url_for('upload') }}" method="POST" enctype="multipart/form-data" id="sheet-upload-form">
+                        <div class="upload-zone" id="sheet-upload-zone">
+                            <input type="file" name="files[]" id="sheet-file-input" accept=".pdf" class="file-input" multiple>
+                            <div class="upload-content" id="sheet-upload-content">
+                                <div class="upload-icon-wrap">
+                                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="upload-svg"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                </div>
+                                <p class="upload-text">Drop your booking PDFs</p>
+                                <p class="upload-hint">IndiGo · Air India · VietJet · auto-detected</p>
+                            </div>
+                            <div class="file-list" id="sheet-file-list" style="display: none;"></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full" id="sheet-upload-btn" disabled>
+                            Upload & Track
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Sheet Manual Tab -->
+                <div class="tab-content" id="sheet-manual-tab">
+                    <form action="{{ url_for('add_manual') }}" method="POST" id="sheet-manual-form">
+                        <div class="airline-selector" id="sheet-airline-selector">
+                            <label class="airline-option">
+                                <input type="radio" name="airline" value="indigo" checked>
+                                <span class="airline-chip">IndiGo <span class="airline-code">6E</span></span>
+                            </label>
+                            <label class="airline-option">
+                                <input type="radio" name="airline" value="airindia">
+                                <span class="airline-chip">Air India <span class="airline-code">AI</span></span>
+                            </label>
+                            <label class="airline-option">
+                                <input type="radio" name="airline" value="vietjet">
+                                <span class="airline-chip">VietJet <span class="airline-code">VJ</span></span>
+                            </label>
+                            <label class="airline-option">
+                                <input type="radio" name="airline" value="singaporeair">
+                                <span class="airline-chip">Singapore Airlines <span class="airline-code">SQ</span></span>
+                            </label>
+                            <label class="airline-option">
+                                <input type="radio" name="airline" value="akasaair">
+                                <span class="airline-chip">Akasa Air <span class="airline-code">QP</span></span>
+                            </label>
+                            <label class="airline-option">
+                                <input type="radio" name="airline" value="etihad">
+                                <span class="airline-chip">Etihad <span class="airline-code">EY</span></span>
+                            </label>
+                            <label class="airline-option">
+                                <input type="radio" name="airline" value="thaiairways">
+                                <span class="airline-chip">Thai Airways <span class="airline-code">TG</span></span>
+                            </label>
+                            <label class="airline-option">
+                                <input type="radio" name="airline" value="srilankan">
+                                <span class="airline-chip">SriLankan <span class="airline-code">UL</span></span>
+                            </label>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="sheet-pnr">PNR Code</label>
+                                <input type="text" id="sheet-pnr" name="pnr" required placeholder="e.g. UXWVRU" maxlength="8" autocomplete="off">
+                            </div>
+                            <div class="form-group" id="sheet-firstname-group" style="display:none;">
+                                <label for="sheet-firstname">First Name</label>
+                                <input type="text" id="sheet-firstname" name="firstname" placeholder="e.g. Deepak" autocomplete="off">
+                            </div>
+                            <div class="form-group">
+                                <label for="sheet-lastname">Last Name</label>
+                                <input type="text" id="sheet-lastname" name="lastname" required placeholder="e.g. Verma" autocomplete="off">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full" id="sheet-manual-btn">
+                            Add & Verify
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast-notification" id="toast-notification"></div>
+
+    <!-- ============================================
+         BOTTOM NAVIGATION (Mobile)
+         ============================================ -->
+    <nav class="bottom-nav" id="bottom-nav">
+        <div class="bottom-nav-items">
+            <button class="bottom-nav-item active" onclick="switchBottomTab('pnr')" aria-label="PNR Tracker">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+                PNR
+            </button>
+            <button class="bottom-nav-item nav-add-btn" onclick="openAddBookingSheet()" aria-label="Add Booking">
+                <div class="nav-add-circle">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </div>
+                Add
+            </button>
+            <button class="bottom-nav-item" onclick="switchBottomTab('completed')" aria-label="Completed Flights">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                Completed
+            </button>
+        </div>
+    </nav>
+
     <script>
-        // --- Tab Switching ---
-        document.querySelectorAll('.tab').forEach(tab => {
+        // ===================================
+        // TAB SWITCHING (Desktop + Sheet)
+        // ===================================
+        function initTabSwitching(containerSelector) {
+            document.querySelectorAll(containerSelector + ' .tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const container = tab.closest(containerSelector) || tab.closest('.tab-bar').parentElement;
+                    const parent = container || document;
+                    parent.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    parent.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    const target = document.getElementById(tab.dataset.tab);
+                    if (target) target.classList.add('active');
+                });
+            });
+        }
+        // Desktop tabs
+        document.querySelectorAll('#add-section .tab').forEach(tab => {
             tab.addEventListener('click', () => {
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.querySelectorAll('#add-section .tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('#add-section .tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+        // Sheet tabs
+        document.querySelectorAll('#sheet-tab-bar .tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('#sheet-tab-bar .tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('#add-booking-overlay .tab-content').forEach(c => c.classList.remove('active'));
                 tab.classList.add('active');
                 document.getElementById(tab.dataset.tab).classList.add('active');
             });
         });
 
-        // --- File Upload (multi-file) ---
+        // ===================================
+        // FILE UPLOAD (multi-file) — Desktop
+        // ===================================
         const uploadZone = document.getElementById('upload-zone');
         const fileInput = document.getElementById('file-input');
         const fileList = document.getElementById('file-list');
         const uploadBtn = document.getElementById('upload-btn');
         const uploadContent = document.getElementById('upload-content');
-
-        // Accumulated files (DataTransfer lets us build a custom FileList)
         let selectedFiles = new DataTransfer();
 
         uploadZone.addEventListener('click', (e) => {
             if (e.target.closest('.file-remove-btn')) return;
             fileInput.click();
         });
-
-        uploadZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadZone.classList.add('drag-over');
-        });
+        uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
         uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
-
         uploadZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadZone.classList.remove('drag-over');
-            const files = e.dataTransfer.files;
-            for (const f of files) {
-                if (f.type === 'application/pdf') selectedFiles.items.add(f);
-            }
-            fileInput.files = selectedFiles.files;
-            renderFileList();
+            e.preventDefault(); uploadZone.classList.remove('drag-over');
+            for (const f of e.dataTransfer.files) { if (f.type === 'application/pdf') selectedFiles.items.add(f); }
+            fileInput.files = selectedFiles.files; renderFileList();
         });
-
         fileInput.addEventListener('change', () => {
-            for (const f of fileInput.files) {
-                selectedFiles.items.add(f);
-            }
-            fileInput.files = selectedFiles.files;
-            renderFileList();
+            for (const f of fileInput.files) selectedFiles.items.add(f);
+            fileInput.files = selectedFiles.files; renderFileList();
         });
 
         function renderFileList() {
             const files = selectedFiles.files;
             if (files.length === 0) {
-                fileList.style.display = 'none';
-                uploadContent.style.display = 'flex';
-                uploadBtn.disabled = true;
-                uploadBtn.textContent = 'Upload & Track';
-                return;
+                fileList.style.display = 'none'; uploadContent.style.display = 'flex';
+                uploadBtn.disabled = true; uploadBtn.textContent = 'Upload & Track'; return;
             }
             fileList.innerHTML = '';
             for (let i = 0; i < files.length; i++) {
-                const item = document.createElement('div');
-                item.className = 'file-preview';
-                item.innerHTML = `
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    <span class="file-name">${files[i].name}</span>
-                    <button type="button" class="file-remove-btn" data-index="${i}">×</button>
-                `;
+                const item = document.createElement('div'); item.className = 'file-preview';
+                item.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="file-name">${files[i].name}</span><button type="button" class="file-remove-btn" data-index="${i}">×</button>`;
                 fileList.appendChild(item);
             }
-            fileList.style.display = 'flex';
-            uploadContent.style.display = 'none';
+            fileList.style.display = 'flex'; uploadContent.style.display = 'none';
             uploadBtn.disabled = false;
             uploadBtn.textContent = files.length === 1 ? 'Upload & Track' : `Upload ${files.length} Files & Track`;
         }
-
         fileList.addEventListener('click', (e) => {
             const btn = e.target.closest('.file-remove-btn');
-            if (!btn) return;
-            e.stopPropagation();
+            if (!btn) return; e.stopPropagation();
             const idx = parseInt(btn.dataset.index);
             const newDT = new DataTransfer();
-            for (let i = 0; i < selectedFiles.files.length; i++) {
-                if (i !== idx) newDT.items.add(selectedFiles.files[i]);
-            }
-            selectedFiles = newDT;
-            fileInput.files = selectedFiles.files;
-            renderFileList();
+            for (let i = 0; i < selectedFiles.files.length; i++) { if (i !== idx) newDT.items.add(selectedFiles.files[i]); }
+            selectedFiles = newDT; fileInput.files = selectedFiles.files; renderFileList();
         });
-        // --- Completed Flights Toggle (smooth CSS animation) ---
-        function toggleCompleted() {
+
+        // ===================================
+        // FILE UPLOAD — Sheet (Mobile)
+        // ===================================
+        const sheetUploadZone = document.getElementById('sheet-upload-zone');
+        const sheetFileInput = document.getElementById('sheet-file-input');
+        const sheetFileList = document.getElementById('sheet-file-list');
+        const sheetUploadBtn = document.getElementById('sheet-upload-btn');
+        const sheetUploadContent = document.getElementById('sheet-upload-content');
+        let sheetSelectedFiles = new DataTransfer();
+
+        sheetUploadZone.addEventListener('click', (e) => {
+            if (e.target.closest('.file-remove-btn')) return;
+            sheetFileInput.click();
+        });
+        sheetFileInput.addEventListener('change', () => {
+            for (const f of sheetFileInput.files) sheetSelectedFiles.items.add(f);
+            sheetFileInput.files = sheetSelectedFiles.files;
+            renderSheetFileList();
+        });
+
+        function renderSheetFileList() {
+            const files = sheetSelectedFiles.files;
+            if (files.length === 0) {
+                sheetFileList.style.display = 'none'; sheetUploadContent.style.display = 'flex';
+                sheetUploadBtn.disabled = true; sheetUploadBtn.textContent = 'Upload & Track'; return;
+            }
+            sheetFileList.innerHTML = '';
+            for (let i = 0; i < files.length; i++) {
+                const item = document.createElement('div'); item.className = 'file-preview';
+                item.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="file-name">${files[i].name}</span><button type="button" class="file-remove-btn" data-index="${i}">×</button>`;
+                sheetFileList.appendChild(item);
+            }
+            sheetFileList.style.display = 'flex'; sheetUploadContent.style.display = 'none';
+            sheetUploadBtn.disabled = false;
+            sheetUploadBtn.textContent = files.length === 1 ? 'Upload & Track' : `Upload ${files.length} Files & Track`;
+        }
+        sheetFileList.addEventListener('click', (e) => {
+            const btn = e.target.closest('.file-remove-btn');
+            if (!btn) return; e.stopPropagation();
+            const idx = parseInt(btn.dataset.index);
+            const newDT = new DataTransfer();
+            for (let i = 0; i < sheetSelectedFiles.files.length; i++) { if (i !== idx) newDT.items.add(sheetSelectedFiles.files[i]); }
+            sheetSelectedFiles = newDT; sheetFileInput.files = sheetSelectedFiles.files; renderSheetFileList();
+        });
+
+        // ===================================
+        // COMPLETED FLIGHTS TOGGLE
+        // ===================================
+        function setCompletedState(expand) {
             const body = document.getElementById('completed-body');
             const text = document.getElementById('toggle-text');
             const chevron = document.getElementById('toggle-chevron');
-            const isExpanded = body.classList.contains('expanded');
-            body.classList.toggle('expanded');
-            chevron.style.transform = isExpanded ? '' : 'rotate(180deg)';
-            text.textContent = isExpanded ? 'Show {{ completed|length }}' : 'Hide';
+            if (!body) return;
+            
+            if (expand) {
+                body.classList.add('expanded');
+                if (chevron) chevron.style.transform = 'rotate(180deg)';
+                if (text) text.textContent = 'Hide';
+            } else {
+                body.classList.remove('expanded');
+                if (chevron) chevron.style.transform = '';
+                if (text) text.textContent = 'Show {{ completed|length if completed else 0 }}';
+            }
         }
 
-        // --- Show/hide First Name field for VietJet ---
-        const airlineRadios = document.querySelectorAll('input[name="airline"]');
-        const firstnameGroup = document.getElementById('firstname-group');
-        const firstnameInput = document.getElementById('firstname');
-        function toggleFirstname() {
-            const selected = document.querySelector('input[name="airline"]:checked');
-            const isVietjet = selected && selected.value === 'vietjet';
-            firstnameGroup.style.display = isVietjet ? '' : 'none';
-            firstnameInput.required = isVietjet;
+        function toggleCompleted() {
+            const body = document.getElementById('completed-body');
+            if (body) {
+                setCompletedState(!body.classList.contains('expanded'));
+            }
         }
-        airlineRadios.forEach(r => r.addEventListener('change', toggleFirstname));
-        toggleFirstname();
 
-        // --- Loading Overlay with Timer ---
+        // ===================================
+        // SHOW/HIDE FIRSTNAME (VietJet)
+        // ===================================
+        function setupVietjetFirstname(formSelector, groupId, inputId) {
+            const radios = document.querySelectorAll(formSelector + ' input[name="airline"]');
+            const group = document.getElementById(groupId);
+            const input = document.getElementById(inputId);
+            function toggle() {
+                const sel = document.querySelector(formSelector + ' input[name="airline"]:checked');
+                const isVJ = sel && sel.value === 'vietjet';
+                group.style.display = isVJ ? '' : 'none';
+                input.required = isVJ;
+            }
+            radios.forEach(r => r.addEventListener('change', toggle));
+            toggle();
+        }
+        setupVietjetFirstname('#manual-form', 'firstname-group', 'firstname');
+        setupVietjetFirstname('#sheet-manual-form', 'sheet-firstname-group', 'sheet-firstname');
+
+        // ===================================
+        // LOADING OVERLAY
+        // ===================================
         document.getElementById('manual-form').addEventListener('submit', () => {
             document.getElementById('loading-overlay').style.display = 'flex';
             let seconds = 0;
@@ -624,85 +901,69 @@
             setInterval(() => {
                 seconds++;
                 timerEl.textContent = seconds + 's';
-                if (seconds === 30) {
-                    document.querySelector('.loading-hint').textContent = 'Still working — airline sites can be slow...';
-                }
+                if (seconds === 30) document.querySelector('.loading-hint').textContent = 'Still working — airline sites can be slow...';
+            }, 1000);
+        });
+        document.getElementById('sheet-manual-form').addEventListener('submit', () => {
+            document.getElementById('loading-overlay').style.display = 'flex';
+            let seconds = 0;
+            const timerEl = document.getElementById('loading-timer');
+            setInterval(() => {
+                seconds++;
+                timerEl.textContent = seconds + 's';
+                if (seconds === 30) document.querySelector('.loading-hint').textContent = 'Still working — airline sites can be slow...';
             }, 1000);
         });
 
-        // --- Detail Row Toggle (Desktop) ---
+        // ===================================
+        // DETAIL ROW TOGGLE (Desktop)
+        // ===================================
         function toggleDetail(id) {
             const row = document.getElementById(id);
             if (row) row.classList.toggle('show');
         }
 
-        // --- Sortable Table ---
-        let currentSortCol = -1;
-        let currentSortDir = 'asc';
-
+        // ===================================
+        // SORTABLE TABLE (Desktop)
+        // ===================================
+        let currentSortCol = -1, currentSortDir = 'asc';
         function sortTable(colIndex) {
             const table = document.getElementById('bookings-table');
             const tbody = table.querySelector('tbody');
             const headers = table.querySelectorAll('th.sortable');
-
-            // Toggle direction
-            if (currentSortCol === colIndex) {
-                currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
-            } else {
-                currentSortDir = 'asc';
-                currentSortCol = colIndex;
-            }
-
-            // Update header arrows
-            headers.forEach(h => {
-                h.classList.remove('sort-asc', 'sort-desc');
-                const label = h.querySelector('.sort-label');
-                if (label) label.textContent = '↕';
-            });
-            headers[colIndex].classList.add('sort-' + currentSortDir);
-            const activeLabel = headers[colIndex].querySelector('.sort-label');
-            if (activeLabel) activeLabel.textContent = currentSortDir === 'asc' ? '▲' : '▼';
-
-            // Collect booking rows with their detail rows
+            if (currentSortCol === colIndex) { currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc'; }
+            else { currentSortDir = 'asc'; currentSortCol = colIndex; }
+            headers.forEach(h => { h.classList.remove('sort-asc', 'sort-desc'); const l = h.querySelector('.sort-label'); if (l) l.textContent = '↕'; });
+            headers[colIndex - 1].classList.add('sort-' + currentSortDir);
+            const al = headers[colIndex - 1].querySelector('.sort-label');
+            if (al) al.textContent = currentSortDir === 'asc' ? '▲' : '▼';
             const rowGroups = [];
             const rows = Array.from(tbody.children);
             for (let i = 0; i < rows.length; i++) {
                 const row = rows[i];
                 if (row.classList.contains('booking-row')) {
                     const group = { main: row, detail: null };
-                    // Check if next row is a detail row
-                    if (i + 1 < rows.length && rows[i + 1].classList.contains('status-detail-row')) {
-                        group.detail = rows[i + 1];
-                        i++; // skip detail row
-                    }
+                    if (i + 1 < rows.length && rows[i + 1].classList.contains('status-detail-row')) { group.detail = rows[i + 1]; i++; }
                     const cell = row.children[colIndex];
                     group.key = cell ? (cell.getAttribute('data-sort-key') || cell.textContent.trim()) : '';
                     rowGroups.push(group);
                 }
             }
-
-            // Sort
             rowGroups.sort((a, b) => {
-                let va = a.key.toLowerCase();
-                let vb = b.key.toLowerCase();
-                // Try numeric comparison for dates/times
+                let va = a.key.toLowerCase(), vb = b.key.toLowerCase();
                 if (va && vb && !isNaN(Date.parse(va)) && !isNaN(Date.parse(vb))) {
-                    return currentSortDir === 'asc'
-                        ? new Date(va) - new Date(vb)
-                        : new Date(vb) - new Date(va);
+                    return currentSortDir === 'asc' ? new Date(va) - new Date(vb) : new Date(vb) - new Date(va);
                 }
                 if (va < vb) return currentSortDir === 'asc' ? -1 : 1;
                 if (va > vb) return currentSortDir === 'asc' ? 1 : -1;
                 return 0;
             });
-
-            // Re-append in order
-            rowGroups.forEach(g => {
-                tbody.appendChild(g.main);
-                if (g.detail) tbody.appendChild(g.detail);
-            });
+            rowGroups.forEach(g => { tbody.appendChild(g.main); if (g.detail) tbody.appendChild(g.detail); });
         }
 
+        // ===================================
+        // CHECK ALL CONFIRM
+        // ===================================
         function confirmCheckAll() {
             const count = {{ bookings|length }};
             const overlay = document.createElement('div');
@@ -721,7 +982,9 @@
             overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
         }
 
-        // --- Auto-dismiss flash with smooth slide-out ---
+        // ===================================
+        // FLASH AUTO-DISMISS
+        // ===================================
         setTimeout(() => {
             document.querySelectorAll('.flash').forEach(el => {
                 el.classList.add('flash-exit');
@@ -729,81 +992,408 @@
             });
         }, 6000);
 
-        // --- Scroll to bookings on success flash ---
         if (document.querySelector('.flash-success')) {
             setTimeout(() => {
                 const section = document.getElementById('bookings-section');
                 if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 300);
         }
-        // --- Check progress polling ---
+
+        // ===================================
+        // CHECK PROGRESS POLLING
+        // ===================================
         let checkPolling = null;
         function startCheckPolling() {
             const bar = document.getElementById('check-progress-bar');
             const stopForm = document.getElementById('stop-check-form');
             const checkForm = document.getElementById('check-all-form');
             const countEl = document.getElementById('check-progress-count');
-
             checkPolling = setInterval(async () => {
                 try {
                     const res = await fetch('/api/check-status');
                     const data = await res.json();
-
                     if (data.running) {
-                        // Show stop, hide check
                         if (stopForm) stopForm.style.display = '';
                         if (checkForm) checkForm.style.display = 'none';
-                        if (bar) {
-                            bar.style.display = '';
-                            const pct = data.total > 0 ? (data.checked / data.total) * 100 : 0;
-                            bar.style.width = pct + '%';
-                        }
+                        if (bar) { bar.style.display = ''; const pct = data.total > 0 ? (data.checked / data.total) * 100 : 0; bar.style.width = pct + '%'; }
                         if (countEl) countEl.textContent = data.checked + '/' + data.total;
                     } else {
-                        // Done — show check, hide stop, refresh page
                         clearInterval(checkPolling);
                         if (bar) { bar.style.width = '100%'; }
                         setTimeout(() => window.location.reload(), 500);
                     }
-                } catch (e) {
-                    console.error('Poll error:', e);
-                }
+                } catch (e) { console.error('Poll error:', e); }
             }, 2000);
         }
-
-        // Start polling if a check is running
         {% if check_running %}
         startCheckPolling();
         {% endif %}
-        // AI Insights Fetch
-        document.addEventListener("DOMContentLoaded", async () => {
-            const aiSection = document.getElementById('ai-insights-section');
-            const aiContent = document.getElementById('ai-insights-content');
-            
-            // Only show AI section if there are bookings to analyze
-            const activeBookingsExist = document.querySelectorAll('.booking-row').length > 0;
-            if (!activeBookingsExist) {
-                return;
-            }
-            
-            aiSection.style.display = 'block';
-            
-            try {
-                const res = await fetch('/api/insights');
-                const data = await res.json();
-                
-                if (data.insights) {
-                    // Convert markdown-like bold to HTML for basic formatting
-                    let formatted = data.insights.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                    aiContent.innerHTML = `<p>${formatted}</p>`;
-                } else {
-                    aiSection.style.display = 'none';
+
+        // ===================================
+        // MOBILE: SEARCH (Client-side filter)
+        // ===================================
+        const searchInput = document.getElementById('mobile-search-input');
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                const query = searchInput.value.trim().toLowerCase();
+                const cards = document.querySelectorAll('#mobile-booking-list .booking-card-v2');
+                let visibleCount = 0;
+                cards.forEach(card => {
+                    const pnr = (card.dataset.pnr || '').toLowerCase();
+                    const passenger = (card.dataset.passenger || '').toLowerCase();
+                    const route = (card.dataset.route || '').toLowerCase();
+                    const match = !query || pnr.includes(query) || passenger.includes(query) || route.includes(query);
+                    card.style.display = match ? '' : 'none';
+                    if (match) visibleCount++;
+                });
+                const noResults = document.getElementById('mobile-no-results');
+                if (noResults) noResults.style.display = visibleCount === 0 && query ? 'block' : 'none';
+            });
+        }
+
+        // ===================================
+        // MOBILE: STATUS FILTER PILLS
+        // ===================================
+        function filterBookings(filter) {
+            // Update pills
+            document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+            const activePill = document.querySelector(`.filter-pill[data-filter="${filter}"]`);
+            if (activePill) activePill.classList.add('active');
+
+            const issueStatuses = ['cancelled', 'not found', 'error', 'check failed', 'not-found'];
+            const completedSection = document.getElementById('completed-section');
+
+            // Filter mobile cards
+            const cards = document.querySelectorAll('#mobile-booking-list .booking-card-v2');
+            cards.forEach(card => {
+                const status = (card.dataset.status || '').toLowerCase();
+                let show = false;
+                if (filter === 'all') show = true;
+                else if (filter === 'confirmed') show = status === 'confirmed' || status === 'check-in open';
+                else if (filter === 'issues') show = issueStatuses.some(s => status.includes(s));
+                else if (filter === 'completed') show = false;
+                card.style.display = show ? '' : 'none';
+            });
+
+            // Filter desktop table rows
+            const rows = document.querySelectorAll('.bookings-table tbody .booking-row');
+            rows.forEach(row => {
+                const status = (row.dataset.status || '').toLowerCase();
+                let show = false;
+                if (filter === 'all') show = true;
+                else if (filter === 'confirmed') show = status === 'confirmed' || status === 'check-in open';
+                else if (filter === 'issues') show = issueStatuses.some(s => status.includes(s));
+                else if (filter === 'completed') show = false;
+                row.style.display = show ? '' : 'none';
+                // Also hide/show the detail row that follows
+                const detailId = row.dataset.detailId;
+                if (detailId) {
+                    const detailRow = document.getElementById(detailId);
+                    if (detailRow && !show) detailRow.style.display = 'none';
                 }
-            } catch (e) {
-                aiContent.innerHTML = `<p class="ai-error">Failed to load insights.</p>`;
-                console.error("AI Insights Error:", e);
+            });
+
+            // Show/hide completed section
+            if (completedSection) {
+                if (filter === 'completed') {
+                    completedSection.style.display = '';
+                    const body = document.getElementById('completed-body');
+                    if (body && !body.classList.contains('expanded')) setCompletedState(true);
+                    completedSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    // Keep completed section visible but collapsed
+                }
             }
+
+            // Clear search when filter changes
+            if (searchInput) searchInput.value = '';
+        }
+
+        // ===================================
+        // MOBILE: COUNT BADGES (on load)
+        // ===================================
+        function updateFilterCounts() {
+            const issueStatuses = ['cancelled', 'not found', 'error', 'check failed', 'not-found'];
+            let countAll = 0, countConfirmed = 0, countIssues = 0;
+
+            // Count from mobile cards
+            const cards = document.querySelectorAll('#mobile-booking-list .booking-card-v2');
+            // Count from desktop table rows
+            const rows = document.querySelectorAll('.bookings-table tbody .booking-row');
+            // Use whichever set has items (both have same data, pick the one that exists)
+            const items = rows.length > 0 ? rows : cards;
+
+            items.forEach(item => {
+                const status = (item.dataset.status || '').toLowerCase();
+                countAll++;
+                if (status === 'confirmed' || status === 'check-in open') countConfirmed++;
+                if (issueStatuses.some(s => status.includes(s))) countIssues++;
+            });
+
+            const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+            el('count-all', countAll);
+            el('count-confirmed', countConfirmed);
+            el('count-issues', countIssues);
+
+            // Needs Attention banner
+            const banner = document.getElementById('needs-attention-banner');
+            if (banner) {
+                if (countIssues > 0) {
+                    banner.style.display = 'flex';
+                    el('attention-count', countIssues + ' booking' + (countIssues !== 1 ? 's' : '') + ' require action');
+                }
+            }
+        }
+        updateFilterCounts();
+
+        // ===================================
+        // MOBILE: PNR DETAILS OVERLAY
+        // ===================================
+        function openPnrDetails(cardEl) {
+            const overlay = document.getElementById('pnr-details-overlay');
+            const body = document.getElementById('details-body');
+            const d = cardEl.dataset;
+
+            const airlineCodes = { 'indigo': '6E', 'airindia': 'AI', 'vietjet': 'VJ', 'singaporeair': 'SQ', 'akasaair': 'QP', 'etihad': 'EY', 'thaiairways': 'TG', 'srilankan': 'UL' };
+            const airlineNames = { 'indigo': 'IndiGo', 'airindia': 'Air India', 'vietjet': 'VietJet', 'singaporeair': 'Singapore Airlines', 'akasaair': 'Akasa Air', 'etihad': 'Etihad', 'thaiairways': 'Thai Airways', 'srilankan': 'SriLankan' };
+            const code = airlineCodes[d.airline] || '6E';
+            const name = airlineNames[d.airline] || 'IndiGo';
+
+            const statusClass = 'status-' + (d.status || '').toLowerCase().replace(/ /g, '-');
+            const route = d.route || '—';
+            const routeDisplay = route.includes('-') ? route.split('-').join(' → ') : route;
+
+            body.innerHTML = `
+                <!-- Summary Card -->
+                <div class="details-summary-card">
+                    <div class="card-v2-line1">
+                        <div class="card-v2-pnr-group">
+                            <div class="airline-badge badge-${d.airline}" title="${name}">
+                                <img src="https://pics.avs.io/200/200/${code}.png" class="airline-logo-img" alt="${code}">
+                                <span class="badge-code">${code}</span>
+                            </div>
+                            <span class="card-v2-pnr">${d.pnr}</span>
+                        </div>
+                        <span class="status-badge ${statusClass}">${d.status}</span>
+                    </div>
+                    <div class="card-v2-route">${routeDisplay}</div>
+                    <div class="card-v2-datetime">${d.flightDate || '—'}${d.departureTime ? ' · ' + d.departureTime : ''}</div>
+                    <div class="card-v2-passenger">${d.passenger}${d.passengerCount > 1 ? ' · ' + d.passengerCount + ' pax' : ''}</div>
+                </div>
+
+                <!-- Flight Info -->
+                <div class="details-flight-info">
+                    <h3>Flight Information</h3>
+                    <div class="details-info-row">
+                        <span class="details-info-label">Flight No.</span>
+                        <span class="details-info-value">${d.flightNumber || '—'}</span>
+                    </div>
+                    <div class="details-info-row">
+                        <span class="details-info-label">Date</span>
+                        <span class="details-info-value">${d.flightDate || '—'}</span>
+                    </div>
+                    <div class="details-info-row">
+                        <span class="details-info-label">Departure</span>
+                        <span class="details-info-value">${d.departureTime ? d.departureTime + ' (' + (route.split('-')[0] || '') + ')' : '—'}</span>
+                    </div>
+                    <div class="details-info-row">
+                        <span class="details-info-label">Arrival</span>
+                        <span class="details-info-value">${d.arrivalTime ? d.arrivalTime + ' (' + (route.split('-')[1] || '') + ')' : '—'}</span>
+                    </div>
+                    <div class="details-info-row">
+                        <span class="details-info-label">Passenger</span>
+                        <span class="details-info-value">${d.passenger}</span>
+                    </div>
+                    <div class="details-info-row">
+                        <span class="details-info-label">PNR</span>
+                        <span class="details-info-value pnr-value">${d.pnr}</span>
+                    </div>
+                    <div class="details-info-row">
+                        <span class="details-info-label">Airline</span>
+                        <span class="details-info-value">${name}</span>
+                    </div>
+                </div>
+
+                ${d.statusDetail ? `<div class="details-status-detail"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px;opacity:0.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${d.statusDetail}</div>` : ''}
+
+                <!-- Last Checked -->
+                <div class="details-last-checked">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    Last checked ${d.lastCheckedAgo || 'never'}
+                </div>
+
+                <!-- Actions -->
+                <div class="details-actions">
+                    <form action="/check/${d.bookingId}" method="POST" class="inline-form" onsubmit="this.querySelector('button').classList.add('is-loading');">
+                        <button type="submit" class="details-action-btn action-refresh">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+                            Refresh Status
+                        </button>
+                    </form>
+                    <button type="button" class="details-action-btn" onclick="copyPnr('${d.pnr}')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        Copy PNR
+                    </button>
+                    <button type="button" class="details-action-btn" onclick="shareBooking('${d.pnr}', '${routeDisplay}', '${d.flightDate}', '${d.departureTime || ''}', '${d.status}', '${d.passenger}')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                        Share
+                    </button>
+                    <form action="/delete/${d.bookingId}" method="POST" class="inline-form" onsubmit="return confirm('Remove this booking from tracking?')">
+                        <button type="submit" class="details-action-btn action-delete">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            Delete Booking
+                        </button>
+                    </form>
+                </div>
+            `;
+
+            overlay.classList.remove('closing');
+            overlay.classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closePnrDetails() {
+            const overlay = document.getElementById('pnr-details-overlay');
+            overlay.classList.add('closing');
+            setTimeout(() => {
+                overlay.classList.remove('open', 'closing');
+                document.body.style.overflow = '';
+            }, 250);
+        }
+
+        // ===================================
+        // COPY PNR
+        // ===================================
+        function copyPnr(pnr) {
+            navigator.clipboard.writeText(pnr).then(() => showToast('PNR copied!')).catch(() => showToast('Copy failed'));
+        }
+
+        // ===================================
+        // BULK ACTIONS
+        // ===================================
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('select-all');
+            const checkboxes = document.querySelectorAll('.bookings-table .row-checkbox');
+            checkboxes.forEach(cb => cb.checked = selectAll.checked);
+            updateBulkActions();
+        }
+
+        function updateBulkActions() {
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            // use a Set to avoid counting desktop and mobile duplicates
+            const checkedValues = new Set();
+            checkboxes.forEach(cb => {
+                if(cb.checked) checkedValues.add(cb.value);
+            });
+            
+            const bulkBar = document.getElementById('bulk-actions-bar');
+            const bulkCount = document.getElementById('bulk-count');
+            
+            if (checkedValues.size > 0) {
+                if (bulkCount) bulkCount.textContent = `${checkedValues.size} selected`;
+                if (bulkBar) bulkBar.style.display = 'flex';
+            } else {
+                if (bulkBar) bulkBar.style.display = 'none';
+                const selectAll = document.getElementById('select-all');
+                if(selectAll) selectAll.checked = false;
+            }
+        }
+
+        function submitBulk(action) {
+            const form = document.getElementById('bulk-form');
+            const actionInput = document.getElementById('bulk-action-type');
+            
+            if (action === 'delete') {
+                if (!confirm('Are you sure you want to delete the selected bookings?')) return;
+            }
+            
+            if (actionInput) actionInput.value = action;
+            
+            if (form) {
+                // clear previously added hidden inputs
+                form.querySelectorAll('input[name="selected_pnrs"]').forEach(el => el.remove());
+                
+                const checkedValues = new Set();
+                document.querySelectorAll('.row-checkbox:checked').forEach(cb => checkedValues.add(cb.value));
+                
+                checkedValues.forEach(val => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'selected_pnrs';
+                    input.value = val;
+                    form.appendChild(input);
+                });
+                
+                form.submit();
+            }
+        }
+
+        // ===================================
+        // SHARE BOOKING
+        // ===================================
+        function shareBooking(pnr, route, date, time, status, passenger) {
+            const text = `Flight Booking\nPNR: ${pnr}\nRoute: ${route}\nDate: ${date}${time ? ' at ' + time : ''}\nPassenger: ${passenger}\nStatus: ${status}`;
+            if (navigator.share) {
+                navigator.share({ title: 'Booking ' + pnr, text: text }).catch(() => {});
+            } else {
+                navigator.clipboard.writeText(text).then(() => showToast('Booking details copied!')).catch(() => showToast('Share failed'));
+            }
+        }
+
+        // ===================================
+        // TOAST NOTIFICATION
+        // ===================================
+        function showToast(msg) {
+            const toast = document.getElementById('toast-notification');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        // ===================================
+        // ADD BOOKING SHEET (Mobile)
+        // ===================================
+        function openAddBookingSheet() {
+            document.getElementById('add-booking-overlay').classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeAddBookingSheet(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('add-booking-overlay').classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        // ===================================
+        // BOTTOM NAV TAB SWITCHING
+        // ===================================
+        function switchBottomTab(tab) {
+            document.querySelectorAll('.bottom-nav-item').forEach(i => i.classList.remove('active'));
+            if (tab === 'pnr') {
+                document.querySelector('.bottom-nav-item:first-child').classList.add('active');
+                document.getElementById('bookings-section').style.display = '';
+                const cs = document.getElementById('completed-section');
+                if (cs) cs.style.display = '';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else if (tab === 'completed') {
+                document.querySelector('.bottom-nav-item:last-child').classList.add('active');
+                const cs = document.getElementById('completed-section');
+                if (cs) {
+                    const body = document.getElementById('completed-body');
+                    if (body && !body.classList.contains('expanded')) setCompletedState(true);
+                    cs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+        }
+
+        // ===================================
+        // KEYBOARD: Enter on card opens details
+        // ===================================
+        document.querySelectorAll('.booking-card-v2').forEach(card => {
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPnrDetails(card); }
+            });
         });
+
     </script>
 </body>
 </html>

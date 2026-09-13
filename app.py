@@ -14,9 +14,10 @@ from database import init_db, add_booking, get_active_bookings, get_booking, del
 from pdf_parser import parse_booking
 from scheduler import run_status_check, setup_scheduler
 from scraper_router import check_pnr_by_airline
+from sync import get_all_bookings_for_sync, merge_remote_bookings, run_sync, SYNC_SECRET
 import scraper as scraper_module
 import threading
-import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Global check state — tracks whether a bulk check is running
 check_state = {
@@ -410,7 +411,11 @@ def check_single(booking_id):
 
 @app.route('/check-now', methods=['POST'])
 def check_now():
-    """Trigger an immediate status check for all PNRs in a background thread."""
+    """Trigger an immediate status check for all PNRs in a background thread.
+
+    Uses a simple for-loop (not ThreadPoolExecutor) so we can check
+    stop_requested BEFORE each PNR — this makes the Stop button responsive.
+    """
     if check_state['running']:
         flash('⏳ A check is already in progress...', 'info')
         return redirect(url_for('index'))
@@ -426,81 +431,255 @@ def check_now():
     check_state['total'] = len(bookings)
     check_state['started_at'] = datetime.now().strftime('%H:%M:%S')
     check_state['current_pnr'] = None
+    check_state['phase'] = ''
+    check_state['last_checked_pnr'] = None
+    check_state['last_checked_status'] = None
 
+    start_background_check(bookings)
+    flash(f'🔄 Checking {len(bookings)} PNRs in the background...', 'info')
+    return redirect(url_for('index'))
+
+
+@app.route('/bulk-action', methods=['POST'])
+def bulk_action():
+    """Handle bulk refresh or delete of selected PNRs."""
+    action = request.form.get('action')
+    booking_ids = request.form.getlist('selected_pnrs')
+
+    if not booking_ids:
+        flash('No bookings selected.', 'info')
+        return redirect(url_for('index'))
+
+    # Convert to ints
+    booking_ids = [int(bid) for bid in booking_ids if bid.isdigit()]
+
+    if action == 'delete':
+        for bid in booking_ids:
+            delete_booking(bid)
+        flash(f'🗑️ Removed {len(booking_ids)} selected bookings.', 'success')
+        return redirect(url_for('index'))
+
+    if action == 'refresh':
+        if check_state['running']:
+            flash('⏳ A check is already in progress...', 'info')
+            return redirect(url_for('index'))
+
+    all_bookings = get_active_bookings()
+    selected_bookings = [b for b in all_bookings if b['id'] in booking_ids]
+
+    if not selected_bookings:
+        flash('No valid bookings found to check.', 'error')
+        return redirect(url_for('index'))
+
+    check_state['running'] = True
+    check_state['stop_requested'] = False
+    check_state['checked'] = 0
+    check_state['total'] = len(selected_bookings)
+    check_state['started_at'] = datetime.now().strftime('%H:%M:%S')
+    check_state['current_pnr'] = None
+    check_state['phase'] = ''
+    check_state['last_checked_pnr'] = None
+    check_state['last_checked_status'] = None
+
+    start_background_check(selected_bookings)
+    flash(f'🔄 Checking {len(selected_bookings)} selected PNRs in the background...', 'info')
+    return redirect(url_for('index'))
+
+
+def start_background_check(bookings_to_check):
+    """Spins off a background thread to check a list of bookings.
+    Uses concurrent processing for IndiGo with max_workers=10.
+    """
     def _run_check():
         try:
-            def _check_single(booking):
+            # Group bookings by PNR and Airline
+            grouped = {}
+            for row in bookings_to_check:
+                b = dict(row)
+                pnr = b['pnr']
+                airline = b.get('airline', 'indigo')
+                key = (pnr, airline)
+                if key not in grouped:
+                    grouped[key] = []
+                grouped[key].append(b)
+
+            total_unique = len(grouped)
+            check_state['total'] = total_unique
+            
+            indigo_pnrs = {k: v for k, v in grouped.items() if k[1] == 'indigo'}
+            srilankan_pnrs = {k: v for k, v in grouped.items() if k[1] == 'srilankan'}
+            other_pnrs = {k: v for k, v in grouped.items() if k[1] not in ('indigo', 'srilankan')}
+
+            def process_status_result(pnr, rows, status_result):
                 if check_state['stop_requested']:
                     return
-                pnr = booking['pnr']
-                check_state['current_pnr'] = pnr
                 
-                lastname = booking['passenger_lastname'] if 'passenger_lastname' in booking.keys() and booking['passenger_lastname'] else ''
-                if not lastname and booking['passenger_name']:
-                    parts = booking['passenger_name'].strip().split()
-                    lastname = parts[-1] if parts else ''
-                airline = booking['airline'] if 'airline' in booking.keys() else 'indigo'
-                firstname = booking['passenger_firstname'] if 'passenger_firstname' in booking.keys() and booking['passenger_firstname'] else ''
+                segments = status_result.get('flight_info', [])
+                if isinstance(segments, dict):
+                    segments = [segments]
 
-                try:
-                    status_result = check_pnr_by_airline(pnr, lastname, airline, firstname or '')
+                pax = segments[0].get('passenger_count') if segments else None
+                update_booking_status(pnr, status_result['status'], status_result.get('detail', ''), pax)
+                for seg in segments:
+                    if seg.get('flight_date') and seg.get('route'):
+                        fetched_name = seg.get('passenger_name') or rows[0]['passenger_name']
+                        add_booking(
+                            pnr=pnr,
+                            passenger_name=fetched_name,
+                            flight_number=seg.get('flight_number', ''),
+                            route=seg.get('route', ''),
+                            flight_date=seg.get('flight_date'),
+                            departure_time=seg.get('departure_time', ''),
+                            arrival_time=seg.get('arrival_time', ''),
+                            passenger_lastname=rows[0].get('passenger_lastname', ''),
+                            passenger_firstname=rows[0].get('passenger_firstname', None),
+                            airline=rows[0].get('airline', 'indigo'),
+                            passenger_count=seg.get('passenger_count', 1)
+                        )
+                logger.info(f"Checked {pnr}: {status_result['status']}")
+                check_state['last_checked_pnr'] = pnr
+                check_state['last_checked_status'] = status_result['status']
+                check_state['checked'] += 1
 
-                    # Discover and add any missing segments (e.g., return leg)
-                    segments = status_result.get('flight_info', [])
-                    if isinstance(segments, dict):
-                        segments = [segments]
+            # Phase 1: IndiGo batched
+            if indigo_pnrs and not check_state['stop_requested']:
+                check_state['phase'] = 'INDIGO'
+                indigo_keys = list(indigo_pnrs.keys())
+                BATCH_SIZE = 10
+                
+                for batch_start in range(0, len(indigo_keys), BATCH_SIZE):
+                    if check_state['stop_requested']:
+                        break
+                    
+                    batch = indigo_keys[batch_start:batch_start + BATCH_SIZE]
+                    futures = {}
+                    with ThreadPoolExecutor(max_workers=BATCH_SIZE) as executor:
+                        for key in batch:
+                            if check_state['stop_requested']:
+                                break
+                            pnr, airline = key
+                            rows = indigo_pnrs[key]
+                            b = rows[0]
+                            lastname = b.get('passenger_lastname', '')
+                            if not lastname and b.get('passenger_name'):
+                                parts = b['passenger_name'].strip().split()
+                                lastname = parts[-1] if parts else ''
+                            firstname = b.get('passenger_firstname', '')
+                            
+                            check_state['current_pnr'] = pnr
+                            future = executor.submit(check_pnr_by_airline, pnr, lastname, airline, firstname or '')
+                            futures[future] = key
+                            
+                        for future in as_completed(futures):
+                            if check_state['stop_requested']:
+                                continue
+                            key = futures[future]
+                            pnr, airline = key
+                            rows = indigo_pnrs[key]
+                            try:
+                                status_result = future.result()
+                                process_status_result(pnr, rows, status_result)
+                            except Exception as e:
+                                logger.error(f"Error checking {pnr}: {e}")
+                                check_state['last_checked_pnr'] = pnr
+                                check_state['last_checked_status'] = 'Error'
+                                check_state['checked'] += 1
 
-                    pax = segments[0].get('passenger_count') if segments else None
-                    update_booking_status(pnr, status_result['status'], status_result['detail'], pax)
-                    for seg in segments:
-                        if seg.get('flight_date') and seg.get('route'):
-                            fetched_name = seg.get('passenger_name') or booking['passenger_name']
-                            add_booking(
-                                pnr=pnr,
-                                passenger_name=fetched_name,
-                                flight_number=seg.get('flight_number', ''),
-                                route=seg.get('route', ''),
-                                flight_date=seg.get('flight_date'),
-                                departure_time=seg.get('departure_time', ''),
-                                arrival_time=seg.get('arrival_time', ''),
-                                passenger_lastname=booking['passenger_lastname'] if 'passenger_lastname' in booking.keys() else '',
-                                passenger_firstname=booking['passenger_firstname'] if 'passenger_firstname' in booking.keys() else None,
-                                airline=airline,
-                                passenger_count=seg.get('passenger_count', 1)
-                            )
+            # Phase 2: SriLankan
+            if srilankan_pnrs and not check_state['stop_requested']:
+                check_state['phase'] = 'SRILANKAN'
+                for key, rows in srilankan_pnrs.items():
+                    if check_state['stop_requested']:
+                        break
+                    pnr, airline = key
+                    check_state['current_pnr'] = pnr
+                    b = rows[0]
+                    lastname = b.get('passenger_lastname', '')
+                    if not lastname and b.get('passenger_name'):
+                        parts = b['passenger_name'].strip().split()
+                        lastname = parts[-1] if parts else ''
+                    firstname = b.get('passenger_firstname', '')
+                    try:
+                        status_result = check_pnr_by_airline(pnr, lastname, airline, firstname or '')
+                        process_status_result(pnr, rows, status_result)
+                    except Exception as e:
+                        logger.error(f"Error checking {pnr}: {e}")
+                        check_state['last_checked_pnr'] = pnr
+                        check_state['last_checked_status'] = 'Error'
+                        check_state['checked'] += 1
 
-                    logger.info(f"Checked {pnr}: {status_result['status']}")
-                except Exception as e:
-                    logger.error(f"Error checking {pnr}: {e}")
-                finally:
-                    check_state['checked'] += 1
-
-            # Run checks sequentially (or low concurrency) to prevent Chrome from crashing
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                futures = [executor.submit(_check_single, b) for b in bookings]
-                concurrent.futures.wait(futures)
+            # Phase 3: Other airlines
+            if other_pnrs and not check_state['stop_requested']:
+                check_state['phase'] = 'OTHER'
+                for key, rows in other_pnrs.items():
+                    if check_state['stop_requested']:
+                        break
+                    pnr, airline = key
+                    check_state['current_pnr'] = pnr
+                    b = rows[0]
+                    lastname = b.get('passenger_lastname', '')
+                    if not lastname and b.get('passenger_name'):
+                        parts = b['passenger_name'].strip().split()
+                        lastname = parts[-1] if parts else ''
+                    firstname = b.get('passenger_firstname', '')
+                    try:
+                        status_result = check_pnr_by_airline(pnr, lastname, airline, firstname or '')
+                        process_status_result(pnr, rows, status_result)
+                    except Exception as e:
+                        logger.error(f"Error checking {pnr}: {e}")
+                        check_state['last_checked_pnr'] = pnr
+                        check_state['last_checked_status'] = 'Error'
+                        check_state['checked'] += 1
 
             if check_state['stop_requested']:
-                logger.info("Check stopped by user")
+                logger.info(f"Check stopped by user at {check_state['checked']}/{check_state['total']}")
         except Exception as e:
             logger.error(f"Bulk check error: {e}")
         finally:
             check_state['running'] = False
             check_state['current_pnr'] = None
+            check_state['phase'] = ''
 
     t = threading.Thread(target=_run_check, daemon=True)
     check_state['thread'] = t
     t.start()
 
-    flash(f'🔄 Checking {len(bookings)} PNRs in the background...', 'info')
-    return redirect(url_for('index'))
-
 
 @app.route('/stop-check', methods=['POST'])
 def stop_check():
-    """Request cancellation of the current bulk check."""
+    """Request cancellation of the current bulk check.
+
+    Sets the stop flag AND kills any running Chrome/chromedriver processes
+    so the current in-flight scrape aborts immediately.
+    """
     if check_state['running']:
         check_state['stop_requested'] = True
+
+        # Kill Chrome/chromedriver processes to abort the in-flight scrape
+        import subprocess
+        try:
+            subprocess.run(['pkill', '-f', 'chromedriver'], capture_output=True, timeout=5)
+            logger.info("Killed chromedriver processes")
+        except Exception:
+            pass
+        try:
+            subprocess.run(['pkill', '-f', 'Chrome.*--headless'], capture_output=True, timeout=5)
+            logger.info("Killed headless Chrome processes")
+        except Exception:
+            pass
+
+        # Force state reset after a short delay so the UI updates
+        def _force_stop():
+            import time
+            time.sleep(3)
+            if check_state['stop_requested']:
+                check_state['running'] = False
+                check_state['current_pnr'] = None
+                check_state['phase'] = ''
+                logger.info("Force-stopped check state")
+
+        threading.Thread(target=_force_stop, daemon=True).start()
+
         flash(f'🛑 Stopping check... ({check_state["checked"]}/{check_state["total"]} completed)', 'info')
     else:
         flash('No check is currently running.', 'info')
@@ -509,47 +688,71 @@ def stop_check():
 
 @app.route('/api/check-status')
 def api_check_status():
-    """API endpoint for the UI to poll check progress."""
+    """API endpoint for the UI to poll check progress.
+
+    Returns enough data for the JS to update the dashboard in real-time:
+    progress counter, current PNR, phase, and the last-checked PNR status.
+    """
     return jsonify({
         'running': check_state['running'],
-        'stop_requested': check_state['stop_requested'],
-        'current_pnr': check_state['current_pnr'],
-        'checked': check_state['checked'],
-        'total': check_state['total'],
-        'started_at': check_state['started_at'],
+        'stop_requested': check_state.get('stop_requested', False),
+        'current_pnr': check_state.get('current_pnr'),
+        'checked': check_state.get('checked', 0),
+        'total': check_state.get('total', 0),
+        'started_at': check_state.get('started_at'),
+        'phase': check_state.get('phase', ''),
+        'last_checked_pnr': check_state.get('last_checked_pnr'),
+        'last_checked_status': check_state.get('last_checked_status'),
     })
 
 
 @app.route('/api/bookings')
 def api_bookings():
-    """API endpoint to get all active bookings as JSON."""
+    """API endpoint to get all active bookings as JSON for real-time dashboard updates."""
     bookings = get_active_bookings()
-    return jsonify([dict(b) for b in bookings])
+    result = []
+    for b in bookings:
+        result.append({
+            'id': b['id'],
+            'pnr': b['pnr'],
+            'passenger_name': b['passenger_name'],
+            'flight_number': b['flight_number'] or '',
+            'route': b['route'] or '',
+            'flight_date': b['flight_date'],
+            'departure_time': b['departure_time'] or '',
+            'status': b['status'],
+            'status_detail': b['status_detail'] or '',
+            'last_checked': b['last_checked'] or '',
+            'airline': b['airline'] if 'airline' in b.keys() else 'indigo',
+            'passenger_count': b['passenger_count'] if 'passenger_count' in b.keys() else 1,
+        })
+    return jsonify(result)
 
-from ai_insights import generate_flight_insights
 
-# Simple in-memory cache for insights
-insights_cache = {'data': None, 'timestamp': None}
+# ---------- Sync API ----------
+@app.route('/api/sync', methods=['GET', 'POST'])
+def api_sync():
+    """Bidirectional sync endpoint.
+    GET: Returns all bookings for remote to pull.
+    POST: Accepts remote bookings and merges them locally.
+    """
+    # Verify sync secret
+    secret = request.headers.get('X-Sync-Secret', '')
+    if secret != SYNC_SECRET:
+        return jsonify({'error': 'Unauthorized'}), 401
 
-@app.route('/api/insights')
-def api_insights():
-    """API endpoint to get AI insights for the active bookings with caching."""
-    global insights_cache
-    now = datetime.now()
-    
-    # Return cached insights if they are less than 10 minutes old
-    if insights_cache['data'] and insights_cache['timestamp'] and (now - insights_cache['timestamp']) < timedelta(minutes=10):
-        return jsonify({'insights': insights_cache['data']})
-        
-    bookings = get_active_bookings()
-    insights = generate_flight_insights([dict(b) for b in bookings])
-    
-    # Only cache if it didn't fail
-    if not insights.startswith("Could not generate") and not insights.startswith("✨ **AI"):
-        insights_cache['data'] = insights
-        insights_cache['timestamp'] = now
-        
-    return jsonify({'insights': insights})
+    if request.method == 'GET':
+        bookings = get_all_bookings_for_sync()
+        return jsonify({'bookings': bookings, 'count': len(bookings)})
+
+    elif request.method == 'POST':
+        data = request.get_json()
+        if not data or 'bookings' not in data:
+            return jsonify({'error': 'Missing bookings data'}), 400
+
+        inserted, updated = merge_remote_bookings(data['bookings'])
+        logger.info(f"Sync POST: {inserted} inserted, {updated} updated from remote")
+        return jsonify({'inserted': inserted, 'updated': updated})
 
 
 # Initialize
@@ -558,6 +761,20 @@ init_db()
 if __name__ == '__main__':
     # Start the scheduler
     scheduler = setup_scheduler()
+
+    # Add sync job — every 5 minutes
+    sync_url = os.getenv('SYNC_REMOTE_URL', '').strip()
+    if sync_url:
+        from apscheduler.triggers.interval import IntervalTrigger
+        scheduler.add_job(
+            run_sync, IntervalTrigger(minutes=5),
+            id='data_sync',
+            name='Bidirectional Data Sync',
+            replace_existing=True,
+        )
+        logger.info(f"Data sync enabled — syncing with {sync_url} every 5 minutes")
+    else:
+        logger.info("Data sync disabled — SYNC_REMOTE_URL not set")
 
     # Render sets PORT; fallback to FLASK_PORT or 8080
     port = int(os.getenv('PORT', os.getenv('FLASK_PORT', 8080)))
