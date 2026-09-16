@@ -1,15 +1,74 @@
 Skip to the main content
 Opens up a Pop Up Dialog
-Error:
-1 error
-Your booking cannot be found. Please check the information you have submitted and try again.
-Search for a booking
-Identification type
-Booking reference
-Booking reference
-Booking reference is a 6 alpha-numeric code.
-Last name
-Continue
+Manage Booking
+Your booking reference is
+ZNR594
+Email confirmation
+Add contact information
+To modify your booking online or to receive a booking confirmation, please enter your contact details.
+Add contact details
+Your flight
+One way flight
+Mumbai to Colombo
+-
+Thursday, 17 September 2026
+Status: Confirmed
+Confirmed
+03:10
+BOM
+nonstop
+05:40
+CMB
+Chhatrapati Shivaji Maharaj
+Terminal 2
+Bandaranaike International
+From Chhatrapati Shivaji Maharaj terminal 2 to Bandaranaike InternationalDeparture date: Thursday, 17 September 2026 at 03:10Arrival date: Thursday, 17 September 2026 at 05:40This flight is direct.
+Duration 
+2h 30min
+2 hours and 30 minutes
+UL 142 operated by SriLankan Airlines
+Economy
+Show flight details
+  
+Your flights are not eligible for online modification. Please contact our call center for more details.
+Passenger
+Passengers
+Invalid passenger details
+Aashna Shrishrimal
+caroledub@gmail.com
++00330686923963
+Adult
+Value added services
+Reserve your preferred seat in advance
+
+Window, Aisle or Extra legroom seat?
+Reserve your seat in advance
+
+From JPY3,250
+Select your seats
+Prepaid Excess Baggage
+
+Pre-purchase extra baggage at a discounted rate
+
+From JPY6,490
+1 carry-on bag, Checked bag(s): 30kg
+Add extra bags
+Pre-order your preferred meal
+
+SriLankan Airlines now offers you the option of choosing your preferred meal from a selectable menu before you fly!
+
+Included
+1 Vegetarian Oriental Meal
+ | 
+Included in fare
+Change
+See receipts 
+|
+Detailed baggage policy 
+|
+Purchase Conditions 
+|
+Dangerous goods policy 
 Secured payment
 Credit card fees may occur.
 Follow us

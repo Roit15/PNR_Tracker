@@ -12,6 +12,7 @@ Key design:
 import os
 import ssl
 import time
+import signal
 import logging
 
 # Module-level SSL fix — persistent across retries
@@ -41,6 +42,59 @@ def _is_cloud():
     return os.getenv('RENDER') or os.getenv('DISPLAY') == ':99'
 import random
 
+def _kill_driver(driver):
+    """Aggressively kill Chrome driver and ALL child processes to prevent orphans."""
+    if driver is None:
+        return
+
+    # Step 1: Try to get the Chrome process PID before quitting
+    chrome_pid = getattr(driver, 'browser_pid', None)
+    service_pid = None
+    try:
+        if hasattr(driver, 'service') and hasattr(driver.service, 'process'):
+            service_pid = driver.service.process.pid
+    except Exception:
+        pass
+
+    # Step 2: Try driver.quit() first (graceful shutdown)
+    try:
+        driver.quit()
+        logger.debug("driver.quit() succeeded")
+    except Exception as e:
+        logger.debug(f"driver.quit() failed: {e}")
+
+    # Step 3: Kill the Chrome process tree via psutil (if available)
+    pids_to_kill = [p for p in [chrome_pid, service_pid] if p]
+    try:
+        import psutil
+        for pid in pids_to_kill:
+            try:
+                parent = psutil.Process(pid)
+                children = parent.children(recursive=True)
+                for child in children:
+                    try:
+                        child.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+                try:
+                    parent.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            except psutil.NoSuchProcess:
+                pass
+        logger.debug(f"Killed Chrome process tree via psutil (pids={pids_to_kill})")
+        return
+    except ImportError:
+        pass
+
+    # Step 4: Fallback — kill PIDs directly with SIGKILL
+    for pid in pids_to_kill:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+
 def _create_stealth_driver():
     """Create a Chrome driver with advanced stealth to bypass Akamai bot detection.
     
@@ -53,29 +107,31 @@ def _create_stealth_driver():
         import undetected_chromedriver as uc
         
         uc_options = uc.ChromeOptions()
-        uc_options.add_argument('--window-size=1280,720')
+        uc_options.add_argument('--start-maximized')
+        uc_options.add_argument('--window-size=1920,1080')
         uc_options.add_argument('--no-first-run')
         uc_options.add_argument('--no-default-browser-check')
         uc_options.add_argument('--lang=en-US,en;q=0.9')
         
         if _is_cloud():
-            uc_options.add_argument('--headless=new')
-            uc_options.add_argument('--disable-gpu')
+            # Run headful inside Xvfb instead of headless to prevent undetected-chromedriver crashes
             uc_options.add_argument('--no-sandbox')
             uc_options.add_argument('--disable-dev-shm-usage')
-            logger.info("Cloud mode: headless + undetected-chromedriver")
+            logger.info("Cloud mode: headful (Xvfb) + undetected-chromedriver")
         else:
-            logger.info("Local mode: visible popup (undetected-chromedriver)")
+            uc_options.add_argument('--headless=new')
+            logger.info("Local mode: headless (undetected-chromedriver)")
         
-        driver = uc.Chrome(options=uc_options, version_main=151, use_subprocess=True)
-        logger.info("Using undetected-chromedriver for IndiGo")
+        driver = uc.Chrome(options=uc_options, version_main=153, use_subprocess=True)
+        logger.info("Using undetected-chromedriver for IndiGo/Singapore")
         return driver
     except Exception as e:
         logger.warning(f"undetected-chromedriver failed ({e}), falling back to selenium-stealth")
     
     # Fallback: standard Selenium + selenium-stealth
     options = Options()
-    options.add_argument('--window-size=1280,720')
+    options.add_argument('--start-maximized')
+    options.add_argument('--window-size=1920,1080')
     options.add_argument('--disable-blink-features=AutomationControlled')
     options.add_argument('--no-first-run')
     options.add_argument('--no-default-browser-check')
@@ -84,14 +140,13 @@ def _create_stealth_driver():
     options.add_experimental_option('useAutomationExtension', False)
 
     if _is_cloud():
-        options.add_argument('--headless=new')
-        options.add_argument('--disable-gpu')
+        # Run headful inside Xvfb
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-extensions')
         options.add_argument('--disable-software-rasterizer')
         options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
-        logger.info("Cloud mode: headless + stealth fallback")
+        logger.info("Cloud mode: headful (Xvfb) + stealth fallback")
     else:
         logger.info("Local mode: visible popup window (stealth fallback)")
 
@@ -134,7 +189,7 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
 
         # Navigate to My Bookings page
         driver.get(INDIGO_URL)
-        time.sleep(random.uniform(8, 12))
+        time.sleep(random.uniform(5, 8))
 
         # Wait for PNR input to be visible
         wait = WebDriverWait(driver, 40)
@@ -175,7 +230,7 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
             get_started.click()
 
         # Mandatory wait for the loading screen/spinner to clear
-        time.sleep(10)
+        time.sleep(7)
 
         # Smart wait: poll until results appear (max 20s)
         page_text = ""
@@ -293,7 +348,7 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
         return result
 
     finally:
-        driver.quit()
+        _kill_driver(driver)
 
 
 def extract_flight_info_from_web(text: str, lastname: str) -> list:

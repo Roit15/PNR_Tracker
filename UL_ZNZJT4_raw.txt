@@ -35,7 +35,24 @@ Passenger
 Passengers
 Invalid passenger details
 Khushi Naresh Vanigotta
+caroledub@gmail.com
++00330686923963
 Adult
+Value added services
+Reserve your preferred seat in advance
+
+Window, Aisle or Extra legroom seat?
+Reserve your seat in advance
+
+From JPY3,250
+Select your seats
+Prepaid Excess Baggage
+
+Pre-purchase extra baggage at a discounted rate
+
+From JPY6,490
+1 carry-on bag, Checked bag(s): 30kg
+Add extra bags
 See receipts 
 |
 Detailed baggage policy 
@@ -52,4 +69,4 @@ Opens in new window
 Opens in new window
 Opens in new window
 Copyright information
-Loading
+Loading complete

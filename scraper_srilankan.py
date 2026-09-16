@@ -112,7 +112,7 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         logger.info("Warming up book.srilankan.com to establish cookies...")
         try:
             page.goto('https://book.srilankan.com/', wait_until='domcontentloaded', timeout=20000)
-            _human_delay(2.0, 3.0)
+            _human_delay(1.5, 2.5)
             warmup_body = page.inner_text('body')
             logger.info(f"book.srilankan.com warmup: {len(warmup_body)} chars")
         except Exception as e:
@@ -122,7 +122,7 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         logger.info("Warming up digital.srilankan.com...")
         try:
             page.goto('https://digital.srilankan.com/', wait_until='domcontentloaded', timeout=20000)
-            _human_delay(2.0, 3.0)
+            _human_delay(1.5, 2.5)
             warmup2 = page.inner_text('body')
             logger.info(f"digital.srilankan.com warmup: {len(warmup2)} chars")
         except Exception as e:
@@ -133,7 +133,7 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         # Step 1: Load the main manage booking page (bypasses WAF)
         logger.info("Loading srilankan.com manage booking page...")
         page.goto(SRILANKAN_MANAGE_URL, wait_until='domcontentloaded', timeout=45000)
-        _human_delay(4.0, 7.0)
+        _human_delay(3.0, 5.0)
 
         # Check for WAF block
         body_text = page.inner_text('body').lower()
@@ -233,7 +233,7 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         # Wait for SPA to render (may redirect to digital.srilankan.com)
         page_text = ''
         for i in range(15):
-            _human_delay(3.0, 5.0)
+            _human_delay(2.0, 3.5)
             try:
                 page_text = page.inner_text('body')
             except Exception:
@@ -342,6 +342,10 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         elif 'check-in' in text_lower or 'checkin' in text_lower:
             result['status'] = 'Check-in Open'
             result['detail'] = _extract_booking_detail(page_text)
+
+        elif 'error' in text_lower and 'incomplete' in text_lower:
+            result['status'] = 'Error'
+            result['detail'] = 'The payment for this booking is incomplete.'
 
         elif 'manage your booking' in text_lower and 'unlimited changes' in text_lower:
             # Still on the form page -- submission didn't go through
@@ -505,8 +509,6 @@ def _check_pnr_status_inner(pnr, lastname):
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             result = _try_check_pnr(pnr, lastname, attempt)
-            if result.get('status') == 'Error':
-                raise Exception(result['detail'])
             return result
         except Exception as e:
             last_error = e

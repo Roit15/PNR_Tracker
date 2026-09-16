@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pnr_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pnr_tracker
+      POSTGRES_USER: pnr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pnr_secure_pwd_change_me}
+      TZ: Asia/Kolkata
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pnr -d pnr_tracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: pnr_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      DATABASE_URL: postgresql://pnr:${POSTGRES_PASSWORD:-pnr_secure_pwd_change_me}@db:5432/pnr_tracker
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-change-this-to-a-random-string}
+      SMTP_EMAIL: ${SMTP_EMAIL}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      RECIPIENT_EMAIL: ${RECIPIENT_EMAIL}
+      PASSENGER_LASTNAME: ${PASSENGER_LASTNAME}
+      CHECK_TIMES: ${CHECK_TIMES:-08:00,18:00}
+      FLASK_PORT: 8080
+      DISPLAY: ":99"
+      TZ: Asia/Kolkata
+    volumes:
+      - ./uploads:/app/uploads
+      - ./screenshots:/app/screenshots
+
+volumes:
+  pgdata:

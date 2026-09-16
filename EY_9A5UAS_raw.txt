@@ -6,6 +6,7 @@ Plan
 Offers
 Loyalty
 Help
+Our brand
 Login or Sign up
 EN
 Manage trip
@@ -15,28 +16,27 @@ Share
 Brussels to
 Bengaluru
 Flight details
-On time
+Departed late
 Brussels
 BRU
-10:55
+10:16
+09:55
 Sat, 12 Sep
 1 stop
-12h 50m
+13h 37m
 Bengaluru
 BLR
 03:15
 Sun, 13 Sep
 Terminal 2
-Check-in opens in 11 day(s) and 11 hour(s)
+You've already checked in
+Baggage status
 PA
 Adult
 Ms Priyanka Agarwal
 RG
 Infant
 Raha Gupta
-Tours & activities
-Explore Tours And Activities
-Add
 Download the Etihad app
 Book your flights faster, manage your trips, track your Guest Miles, and get access to exclusive offers.
 Terms and Conditions Privacy policy Cookie policy Rules and notices Legal information Cookie Settings Copyright 2026 Etihad Airways. All rights reserved.

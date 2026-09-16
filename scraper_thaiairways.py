@@ -264,10 +264,8 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         return result
 
     finally:
-        try:
-            driver.get("about:blank")
-        except Exception:
-            pass
+        from scraper import _kill_driver
+        _kill_driver(driver)
 
 
 def _extract_booking_detail(text):

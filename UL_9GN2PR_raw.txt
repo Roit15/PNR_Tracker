@@ -4,9 +4,10 @@ Manage Booking
 Your booking reference is
 9GN2PR
 Email confirmation
-Add contact information
-To modify your booking online or to receive a booking confirmation, please enter your contact details.
+Review contact information
+To modify your booking online or to receive a booking confirmation, please enter your contact details. Please ignore this if you have already done by clicking the dismiss button.
 Add contact details
+Dismiss
 Your flight
 One way flight
 Colombo to Mumbai
@@ -33,9 +34,47 @@ Show flight details
 Your flights are not eligible for online modification. Please contact our call center for more details.
 Passenger
 Passengers
-Invalid passenger details
+Valid passenger details
 Disha Sanjaykumar Haran
+dishaharan@gmail.com
++910033794684490
 Adult
+Value added services
+Reserve your preferred seat in advance
+
+Window, Aisle or Extra legroom seat?
+Reserve your seat in advance
+
+From USD20.00
+1/1 seat selected
+1 seat
+ | 
+Included in fare
+Prepaid Excess Baggage
+
+Pre-purchase extra baggage at a discounted rate
+
+From USD40.00
+1 carry-on bag, Checked bag(s): 30kg
+Add extra bags
+Pre-order your preferred meal
+
+SriLankan Airlines now offers you the option of choosing your preferred meal from a selectable menu before you fly!
+
+From USD0.00
+1 Asian Vegetarian Meal
+ | 
+Included in fare
+Change
+Celebrate your special moments on-board
+
+Be it an anniversary, a birthday, honeymoon or a new beginning, you can now pre-order cakes that suit any occasion.
+
+From USD30.00
+
+Some service options are almost sold out. Order soon to secure your choice.
+
+Add cake
 See receipts 
 |
 Detailed baggage policy 
@@ -52,4 +91,4 @@ Opens in new window
 Opens in new window
 Opens in new window
 Copyright information
-Loading
+Loading complete

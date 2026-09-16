@@ -1479,13 +1479,15 @@ body {
    SMOOTH COMPLETED TOGGLE
    ================== */
 .completed-body {
-    display: none;
+    max-height: 0;
+    overflow: hidden;
     opacity: 0;
-    transition: opacity 0.3s var(--ease);
+    transition: max-height 0.4s var(--ease), opacity 0.3s var(--ease);
 }
 .completed-body.expanded {
-    display: block;
+    max-height: 5000px;
     opacity: 1;
+    overflow: visible;
 }
 
 /* ==================

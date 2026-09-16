@@ -1368,19 +1368,33 @@
         // ===================================
         function switchBottomTab(tab) {
             document.querySelectorAll('.bottom-nav-item').forEach(i => i.classList.remove('active'));
+            const bookingsSection = document.getElementById('bookings-section');
+            const cs = document.getElementById('completed-section');
+            // Also hide/show mobile elements that sit above the sections
+            const mobileSearch = document.getElementById('mobile-search-wrap');
+            const mobileActions = document.getElementById('mobile-primary-actions');
+            const filterPills = document.getElementById('status-filter-pills');
+
             if (tab === 'pnr') {
                 document.querySelector('.bottom-nav-item:first-child').classList.add('active');
-                document.getElementById('bookings-section').style.display = '';
-                const cs = document.getElementById('completed-section');
-                if (cs) cs.style.display = '';
+                if (bookingsSection) bookingsSection.style.display = '';
+                if (cs) { cs.style.display = ''; setCompletedState(false); }
+                if (mobileSearch) mobileSearch.style.display = '';
+                if (mobileActions) mobileActions.style.display = '';
+                if (filterPills) filterPills.style.display = '';
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             } else if (tab === 'completed') {
                 document.querySelector('.bottom-nav-item:last-child').classList.add('active');
-                const cs = document.getElementById('completed-section');
+                // Hide active bookings section and filter UI
+                if (bookingsSection) bookingsSection.style.display = 'none';
+                if (mobileSearch) mobileSearch.style.display = 'none';
+                if (mobileActions) mobileActions.style.display = 'none';
+                if (filterPills) filterPills.style.display = 'none';
                 if (cs) {
+                    cs.style.display = '';
                     const body = document.getElementById('completed-body');
                     if (body && !body.classList.contains('expanded')) setCompletedState(true);
-                    cs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
             }
         }

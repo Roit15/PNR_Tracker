@@ -1,0 +1,201 @@
+INFO:__main__:=== Full status report at 2026-09-09 13:04:14 ===
+INFO:__main__:Checking 80 booking row(s) across 77 unique PNR(s)
+INFO:__main__:═══ Phase 1: IndiGo — 40 unique PNR(s) in batches of 10 ═══
+INFO:__main__:── IndiGo batch 1/4: 10 PNR(s) ──
+INFO:__main__:  Launching IndiGo check: PNR=R5N64Y
+INFO:__main__:  Launching IndiGo check: PNR=O99JTC
+INFO:__main__:  Launching IndiGo check: PNR=U79TQI
+INFO:__main__:  Launching IndiGo check: PNR=YFPCSN
+INFO:__main__:  Launching IndiGo check: PNR=CC1P4Q
+INFO:__main__:  Launching IndiGo check: PNR=LC2HTG
+INFO:__main__:  Launching IndiGo check: PNR=LCSNJD
+INFO:__main__:  Launching IndiGo check: PNR=PDV8UQ
+INFO:__main__:  Launching IndiGo check: PNR=MGRT9U
+INFO:__main__:  Launching IndiGo check: PNR=LD686A
+INFO:scraper_router:Routing PNR R5N64Y to IndiGo scraper
+INFO:scraper_router:Routing PNR O99JTC to IndiGo scraper
+INFO:scraper_router:Routing PNR U79TQI to IndiGo scraper
+INFO:scraper_router:Routing PNR YFPCSN to IndiGo scraper
+INFO:scraper_router:Routing PNR CC1P4Q to IndiGo scraper
+INFO:scraper_router:Routing PNR LC2HTG to IndiGo scraper
+INFO:scraper_router:Routing PNR LCSNJD to IndiGo scraper
+INFO:scraper_router:Routing PNR PDV8UQ to IndiGo scraper
+INFO:scraper_router:Routing PNR LD686A to IndiGo scraper
+INFO:scraper_router:Routing PNR MGRT9U to IndiGo scraper
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: U79TQI
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: R5N64Y
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: MGRT9U
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+WARNING:scraper:undetected-chromedriver failed ([Errno 2] No such file or directory: '/Users/jangr/Library/Application Support/undetected_chromedriver/undetected/chromedriver-mac-x64/chromedriver' -> '/Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver'), falling back to selenium-stealth
+INFO:scraper:Local mode: visible popup window (stealth fallback)
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:scraper:Applied selenium-stealth patches
+INFO:scraper:[Attempt 1/3] Checking PNR: LCSNJD
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: CC1P4Q
+INFO:scraper:Got flight data after 1s
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: PDV8UQ
+INFO:scraper:Screenshot saved: /Users/jangr/vibeCoding/PNR_Tracker/screenshots/MGRT9U_status.png
+INFO:__main__:  IndiGo PNR MGRT9U: Cancelled
+INFO:scraper:Got flight data after 1s
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: LD686A
+INFO:scraper:Screenshot saved: /Users/jangr/vibeCoding/PNR_Tracker/screenshots/U79TQI_status.png
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: YFPCSN
+INFO:__main__:  IndiGo PNR U79TQI: Confirmed
+INFO:scraper:Got flight data after 1s
+INFO:scraper:Screenshot saved: /Users/jangr/vibeCoding/PNR_Tracker/screenshots/R5N64Y_status.png
+INFO:__main__:  IndiGo PNR R5N64Y: Confirmed
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: O99JTC
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: LC2HTG
+INFO:scraper:Got flight data after 1s
+INFO:scraper:Screenshot saved: /Users/jangr/vibeCoding/PNR_Tracker/screenshots/CC1P4Q_status.png
+INFO:__main__:  IndiGo PNR CC1P4Q: Confirmed
+INFO:scraper:Got flight data after 1s
+INFO:scraper:Screenshot saved: /Users/jangr/vibeCoding/PNR_Tracker/screenshots/YFPCSN_status.png
+INFO:__main__:  IndiGo PNR YFPCSN: Confirmed
+INFO:scraper:Got flight data after 1s
+INFO:scraper:Got flight data after 1s
+INFO:scraper:Screenshot saved: /Users/jangr/vibeCoding/PNR_Tracker/screenshots/LCSNJD_status.png
+INFO:__main__:  IndiGo PNR LCSNJD: Confirmed
+INFO:scraper:Screenshot saved: /Users/jangr/vibeCoding/PNR_Tracker/screenshots/PDV8UQ_status.png
+INFO:__main__:  IndiGo PNR PDV8UQ: Confirmed
+INFO:scraper:Got flight data after 1s
+INFO:scraper:Screenshot saved: /Users/jangr/vibeCoding/PNR_Tracker/screenshots/LD686A_status.png
+INFO:__main__:  IndiGo PNR LD686A: Confirmed
+INFO:scraper:Timed out waiting for results (20s), proceeding with current page
+WARNING:urllib3.connectionpool:Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'RemoteDisconnected('Remote end closed connection without response')': /session/125a8a722c41dbb5d0c42c746ca7ef34/screenshot
+WARNING:urllib3.connectionpool:Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=63769): Failed to establish a new connection: [Errno 61] Connection refused")': /session/125a8a722c41dbb5d0c42c746ca7ef34/screenshot
+WARNING:urllib3.connectionpool:Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=63769): Failed to establish a new connection: [Errno 61] Connection refused")': /session/125a8a722c41dbb5d0c42c746ca7ef34/screenshot
+WARNING:scraper:Attempt 1/3 failed for PNR O99JTC: HTTPConnectionPool(host='localhost', port=63769): Max retries exceeded with url: /session/125a8a722c41dbb5d0c42c746ca7ef34/screenshot (Caused by NewConnectionError("HTTPConnection(host='localhost', port=63769): Failed to establish a new connection: [Errno 61] Connection refused"))
+INFO:scraper:Waiting 10s before retry...
+WARNING:urllib3.connectionpool:Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=63833): Failed to establish a new connection: [Errno 61] Connection refused")': /session/e45a9488ebf7dc078e7a1847b1de853a/element
+WARNING:urllib3.connectionpool:Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=63833): Failed to establish a new connection: [Errno 61] Connection refused")': /session/e45a9488ebf7dc078e7a1847b1de853a/element
+WARNING:urllib3.connectionpool:Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=63833): Failed to establish a new connection: [Errno 61] Connection refused")': /session/e45a9488ebf7dc078e7a1847b1de853a/element
+WARNING:scraper:Attempt 1/3 failed for PNR LC2HTG: HTTPConnectionPool(host='localhost', port=63833): Max retries exceeded with url: /session/e45a9488ebf7dc078e7a1847b1de853a/element (Caused by NewConnectionError("HTTPConnection(host='localhost', port=63833): Failed to establish a new connection: [Errno 61] Connection refused"))
+INFO:scraper:Waiting 10s before retry...
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 2/3] Checking PNR: O99JTC
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 2/3] Checking PNR: LC2HTG
+WARNING:urllib3.connectionpool:Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=64237): Failed to establish a new connection: [Errno 61] Connection refused")': /session/399981eeebcd7c04b291dd400253c362/element
+WARNING:urllib3.connectionpool:Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=64237): Failed to establish a new connection: [Errno 61] Connection refused")': /session/399981eeebcd7c04b291dd400253c362/element
+WARNING:urllib3.connectionpool:Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=64237): Failed to establish a new connection: [Errno 61] Connection refused")': /session/399981eeebcd7c04b291dd400253c362/element
+WARNING:urllib3.connectionpool:Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=64201): Failed to establish a new connection: [Errno 61] Connection refused")': /session/beb235472f0d31a5365b9f1137223bc0/element
+WARNING:urllib3.connectionpool:Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=64201): Failed to establish a new connection: [Errno 61] Connection refused")': /session/beb235472f0d31a5365b9f1137223bc0/element
+WARNING:urllib3.connectionpool:Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError("HTTPConnection(host='localhost', port=64201): Failed to establish a new connection: [Errno 61] Connection refused")': /session/beb235472f0d31a5365b9f1137223bc0/element
+WARNING:scraper:Attempt 2/3 failed for PNR LC2HTG: HTTPConnectionPool(host='localhost', port=64237): Max retries exceeded with url: /session/399981eeebcd7c04b291dd400253c362/element (Caused by NewConnectionError("HTTPConnection(host='localhost', port=64237): Failed to establish a new connection: [Errno 61] Connection refused"))
+INFO:scraper:Waiting 20s before retry...
+WARNING:scraper:Attempt 2/3 failed for PNR O99JTC: HTTPConnectionPool(host='localhost', port=64201): Max retries exceeded with url: /session/beb235472f0d31a5365b9f1137223bc0/element (Caused by NewConnectionError("HTTPConnection(host='localhost', port=64201): Failed to establish a new connection: [Errno 61] Connection refused"))
+INFO:scraper:Waiting 20s before retry...
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 3/3] Checking PNR: O99JTC
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 3/3] Checking PNR: LC2HTG
+WARNING:scraper:Attempt 3/3 failed for PNR O99JTC: Message: 
+
+ERROR:scraper:All 3 attempts failed for PNR O99JTC: Message: 
+
+INFO:__main__:  IndiGo PNR O99JTC: Error
+WARNING:scraper:Attempt 3/3 failed for PNR LC2HTG: Message: 
+
+ERROR:scraper:All 3 attempts failed for PNR LC2HTG: Message: 
+
+INFO:__main__:  IndiGo PNR LC2HTG: Error
+INFO:__main__:── IndiGo batch 1 complete ──
+INFO:__main__:── IndiGo batch 2/4: 10 PNR(s) ──
+INFO:__main__:  Launching IndiGo check: PNR=QY233M
+INFO:scraper_router:Routing PNR QY233M to IndiGo scraper
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:__main__:  Launching IndiGo check: PNR=KHFMHE
+INFO:scraper_router:Routing PNR KHFMHE to IndiGo scraper
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:__main__:  Launching IndiGo check: PNR=HEJFNN
+INFO:scraper_router:Routing PNR HEJFNN to IndiGo scraper
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:__main__:  Launching IndiGo check: PNR=FCZ4KT
+INFO:scraper_router:Routing PNR FCZ4KT to IndiGo scraper
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:__main__:  Launching IndiGo check: PNR=SBBQSZ
+INFO:scraper_router:Routing PNR SBBQSZ to IndiGo scraper
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:__main__:  Launching IndiGo check: PNR=O99J3M
+INFO:scraper_router:Routing PNR O99J3M to IndiGo scraper
+INFO:__main__:  Launching IndiGo check: PNR=SYDK7J
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper_router:Routing PNR SYDK7J to IndiGo scraper
+INFO:__main__:  Launching IndiGo check: PNR=Z71V5V
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper_router:Routing PNR Z71V5V to IndiGo scraper
+INFO:__main__:  Launching IndiGo check: PNR=R6KL2V
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:scraper_router:Routing PNR R6KL2V to IndiGo scraper
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:__main__:  Launching IndiGo check: PNR=YGRTTX
+INFO:scraper_router:Routing PNR YGRTTX to IndiGo scraper
+INFO:scraper:Local mode: visible popup (undetected-chromedriver)
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: YGRTTX
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: KHFMHE
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: FCZ4KT
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: Z71V5V
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+WARNING:scraper:undetected-chromedriver failed ([Errno 2] No such file or directory: '/Users/jangr/Library/Application Support/undetected_chromedriver/undetected/chromedriver-mac-x64/chromedriver' -> '/Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver'), falling back to selenium-stealth
+INFO:scraper:Local mode: visible popup window (stealth fallback)
+INFO:scraper:Applied selenium-stealth patches
+INFO:scraper:[Attempt 1/3] Checking PNR: R6KL2V
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: O99J3M
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: SYDK7J
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: QY233M
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:undetected_chromedriver.patcher:patching driver executable /Users/jangr/Library/Application Support/undetected_chromedriver/undetected_chromedriver
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: SBBQSZ
+INFO:scraper:Using undetected-chromedriver for IndiGo
+INFO:scraper:[Attempt 1/3] Checking PNR: HEJFNN
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/resource_tracker.py:277: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-pjo2ye1p'}
+  warnings.warn(

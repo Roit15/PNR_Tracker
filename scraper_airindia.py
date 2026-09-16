@@ -133,11 +133,10 @@ def _create_stealth_driver():
         # Local: visible popup window (headless gets fingerprinted by Imperva)
         # Cloud: must be headless (no display)
         if _is_cloud():
-            options.add_argument('--headless=new')
-            options.add_argument('--disable-gpu')
+            # Run headful inside Xvfb instead of headless
             options.add_argument('--no-sandbox')
             options.add_argument('--disable-dev-shm-usage')
-            logger.info("Cloud mode: headless + no-sandbox (undetected-chromedriver)")
+            logger.info("Cloud mode: headful (Xvfb) + no-sandbox (undetected-chromedriver)")
         else:
             logger.info("Local mode: visible popup window (undetected-chromedriver)")
 
@@ -957,18 +956,8 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         return result
 
     finally:
-        try:
-            if hasattr(driver, 'browser_pid'):
-                pid = driver.browser_pid
-                driver.quit()
-                try:
-                    __import__('os').kill(pid, __import__('signal').SIGTERM)
-                except Exception:
-                    pass
-            else:
-                driver.quit()
-        except Exception:
-            pass
+        from scraper import _kill_driver
+        _kill_driver(driver)
 
 
 def extract_flight_info_from_web(text: str, lastname: str) -> dict:
@@ -1498,6 +1487,14 @@ def check_pnr_status(pnr, lastname):
     Runs the scraper in a subprocess to isolate undetected_chromedriver from Flask threads,
     preventing 'target window already closed' and other threading crashes.
     """
+    if _is_cloud():
+        logger.warning(f"Air India scraping is disabled on Cloud/VPS due to strict Akamai IP blocks.")
+        return {
+            'status': 'Check Failed',
+            'detail': 'Air India strictly blocks cloud server IPs. Status will be checked by the local app and synced automatically.',
+            'raw_text': ''
+        }
+
     import subprocess
     import json
     import os

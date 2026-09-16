@@ -4,9 +4,10 @@ Manage Booking
 Your booking reference is
 ZO4B3W
 Email confirmation
-Add contact information
-To modify your booking online or to receive a booking confirmation, please enter your contact details.
+Review contact information
+To modify your booking online or to receive a booking confirmation, please enter your contact details. Please ignore this if you have already done by clicking the dismiss button.
 Add contact details
+Dismiss
 Your flight
 One way flight
 Mumbai to Colombo
@@ -33,9 +34,38 @@ Show flight details
 Your flights are not eligible for online modification. Please contact our call center for more details.
 Passenger
 Passengers
-Invalid passenger details
+Valid passenger details
 Disha Sanjaykumar Haran
+dishaharan@gmail.com
++9100330686923963
 Adult
+Value added services
+Reserve your preferred seat in advance
+
+Window, Aisle or Extra legroom seat?
+Reserve your seat in advance
+
+From JPY3,250
+1/1 seat selected
+1 seat
+ | 
+Included in fare
+Prepaid Excess Baggage
+
+Pre-purchase extra baggage at a discounted rate
+
+From JPY6,490
+1 carry-on bag, Checked bag(s): 30kg
+Add extra bags
+Pre-order your preferred meal
+
+SriLankan Airlines now offers you the option of choosing your preferred meal from a selectable menu before you fly!
+
+Included
+1 Vegetarian Oriental Meal
+ | 
+Included in fare
+Change
 See receipts 
 |
 Detailed baggage policy 
@@ -52,4 +82,4 @@ Opens in new window
 Opens in new window
 Opens in new window
 Copyright information
-Loading
+Loading complete

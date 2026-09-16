@@ -1,0 +1,365 @@
+2: [0] // --- Tab Switching ---
+3: [0] document.querySelectorAll('.tab').forEach(tab => {
+4: [1] tab.addEventListener('click', () => {
+5: [2] document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+6: [2] document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+7: [2] tab.classList.add('active');
+8: [2] document.getElementById(tab.dataset.tab).classList.add('active');
+9: [1] });
+10: [0] });
+12: [0] // --- File Upload (multi-file) ---
+13: [0] const uploadZone = document.getElementById('upload-zone');
+14: [0] const fileInput = document.getElementById('file-input');
+15: [0] const fileList = document.getElementById('file-list');
+16: [0] const uploadBtn = document.getElementById('upload-btn');
+17: [0] const uploadContent = document.getElementById('upload-content');
+19: [0] // Accumulated files (DataTransfer lets us build a custom FileList)
+20: [0] let selectedFiles = new DataTransfer();
+22: [0] uploadZone.addEventListener('click', (e) => {
+23: [1] if (e.target.closest('.file-remove-btn')) return;
+24: [1] fileInput.click();
+25: [0] });
+27: [0] uploadZone.addEventListener('dragover', (e) => {
+28: [1] e.preventDefault();
+29: [1] uploadZone.classList.add('drag-over');
+30: [0] });
+31: [0] uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+33: [0] uploadZone.addEventListener('drop', (e) => {
+34: [1] e.preventDefault();
+35: [1] uploadZone.classList.remove('drag-over');
+36: [1] const files = e.dataTransfer.files;
+37: [1] for (const f of files) {
+38: [2] if (f.type === 'application/pdf') selectedFiles.items.add(f);
+39: [1] }
+40: [1] fileInput.files = selectedFiles.files;
+41: [1] renderFileList();
+42: [0] });
+44: [0] fileInput.addEventListener('change', () => {
+45: [1] for (const f of fileInput.files) {
+46: [2] selectedFiles.items.add(f);
+47: [1] }
+48: [1] fileInput.files = selectedFiles.files;
+49: [1] renderFileList();
+50: [0] });
+52: [0] function renderFileList() {
+53: [1] const files = selectedFiles.files;
+54: [1] if (files.length === 0) {
+55: [2] fileList.style.display = 'none';
+56: [2] uploadContent.style.display = 'flex';
+57: [2] uploadBtn.disabled = true;
+58: [2] uploadBtn.textContent = 'Upload & Track';
+59: [2] return;
+60: [1] }
+61: [1] fileList.innerHTML = '';
+62: [1] for (let i = 0; i < files.length; i++) {
+63: [2] const item = document.createElement('div');
+64: [2] item.className = 'file-preview';
+65: [2] item.innerHTML = `
+66: [2] <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+67: [2] <span class="file-name">${files[i].name}</span>
+68: [2] <button type="button" class="file-remove-btn" data-index="${i}">×</button>
+69: [2] `;
+70: [2] fileList.appendChild(item);
+71: [1] }
+72: [1] fileList.style.display = 'flex';
+73: [1] uploadContent.style.display = 'none';
+74: [1] uploadBtn.disabled = false;
+75: [1] uploadBtn.textContent = files.length === 1 ? 'Upload & Track' : `Upload ${files.length} Files & Track`;
+76: [0] }
+78: [0] fileList.addEventListener('click', (e) => {
+79: [1] const btn = e.target.closest('.file-remove-btn');
+80: [1] if (!btn) return;
+81: [1] e.stopPropagation();
+82: [1] const idx = parseInt(btn.dataset.index);
+83: [1] const newDT = new DataTransfer();
+84: [1] for (let i = 0; i < selectedFiles.files.length; i++) {
+85: [2] if (i !== idx) newDT.items.add(selectedFiles.files[i]);
+86: [1] }
+87: [1] selectedFiles = newDT;
+88: [1] fileInput.files = selectedFiles.files;
+89: [1] renderFileList();
+90: [0] });
+91: [0] // --- Completed Flights Toggle (smooth CSS animation) ---
+92: [0] function toggleCompleted() {
+93: [1] const body = document.getElementById('completed-body');
+94: [1] const text = document.getElementById('toggle-text');
+95: [1] const chevron = document.getElementById('toggle-chevron');
+96: [1] const isExpanded = body.classList.contains('expanded');
+97: [1] body.classList.toggle('expanded');
+98: [1] chevron.style.transform = isExpanded ? '' : 'rotate(180deg)';
+99: [1] text.textContent = isExpanded ? 'Show 254' : 'Hide';
+100: [0] }
+102: [0] // --- Show/hide First Name field for VietJet ---
+103: [0] const airlineRadios = document.querySelectorAll('input[name="airline"]');
+104: [0] const firstnameGroup = document.getElementById('firstname-group');
+105: [0] const firstnameInput = document.getElementById('firstname');
+106: [0] function toggleFirstname() {
+107: [1] const selected = document.querySelector('input[name="airline"]:checked');
+108: [1] const isVietjet = selected && selected.value === 'vietjet';
+109: [1] firstnameGroup.style.display = isVietjet ? '' : 'none';
+110: [1] firstnameInput.required = isVietjet;
+111: [0] }
+112: [0] airlineRadios.forEach(r => r.addEventListener('change', toggleFirstname));
+113: [0] toggleFirstname();
+115: [0] // --- Loading Overlay with Timer ---
+116: [0] document.getElementById('manual-form').addEventListener('submit', () => {
+117: [1] document.getElementById('loading-overlay').style.display = 'flex';
+118: [1] let seconds = 0;
+119: [1] const timerEl = document.getElementById('loading-timer');
+120: [1] setInterval(() => {
+121: [2] seconds++;
+122: [2] timerEl.textContent = seconds + 's';
+123: [2] if (seconds === 30) {
+124: [3] document.querySelector('.loading-hint').textContent = 'Still working — airline sites can be slow...';
+125: [2] }
+126: [1] }, 1000);
+127: [0] });
+129: [0] // --- Detail Row Toggle (Desktop) ---
+130: [0] function toggleDetail(id) {
+131: [1] const row = document.getElementById(id);
+132: [1] if (row) row.classList.toggle('show');
+133: [0] }
+135: [0] // --- Sortable Table ---
+136: [0] let currentSortCol = -1;
+137: [0] let currentSortDir = 'asc';
+139: [0] function sortTable(colIndex) {
+140: [1] const table = document.getElementById('bookings-table');
+141: [1] const tbody = table.querySelector('tbody');
+142: [1] const headers = table.querySelectorAll('th.sortable');
+144: [1] // Toggle direction
+145: [1] if (currentSortCol === colIndex) {
+146: [2] currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+147: [2] } else {
+148: [2] currentSortDir = 'asc';
+149: [2] currentSortCol = colIndex;
+150: [1] }
+152: [1] // Update header arrows
+153: [1] headers.forEach(h => {
+154: [2] h.classList.remove('sort-asc', 'sort-desc');
+155: [2] const label = h.querySelector('.sort-label');
+156: [2] if (label) label.textContent = '↕';
+157: [1] });
+158: [1] headers[colIndex].classList.add('sort-' + currentSortDir);
+159: [1] const activeLabel = headers[colIndex].querySelector('.sort-label');
+160: [1] if (activeLabel) activeLabel.textContent = currentSortDir === 'asc' ? '▲' : '▼';
+162: [1] // Collect booking rows with their detail rows
+163: [1] const rowGroups = [];
+164: [1] const rows = Array.from(tbody.children);
+165: [1] for (let i = 0; i < rows.length; i++) {
+166: [2] const row = rows[i];
+167: [2] if (row.classList.contains('booking-row')) {
+168: [3] const group = { main: row, detail: null };
+169: [3] // Check if next row is a detail row
+170: [3] if (i + 1 < rows.length && rows[i + 1].classList.contains('status-detail-row')) {
+171: [4] group.detail = rows[i + 1];
+172: [4] i++; // skip detail row
+173: [3] }
+174: [3] const cell = row.children[colIndex + 1]; // +1 for checkbox column
+175: [3] group.key = cell ? (cell.getAttribute('data-sort-key') || cell.textContent.trim()) : '';
+176: [3] rowGroups.push(group);
+177: [2] }
+178: [1] }
+180: [1] // Sort
+181: [1] rowGroups.sort((a, b) => {
+182: [2] let va = a.key.toLowerCase();
+183: [2] let vb = b.key.toLowerCase();
+184: [2] // Try numeric comparison for dates/times
+185: [2] if (va && vb && !isNaN(Date.parse(va)) && !isNaN(Date.parse(vb))) {
+186: [3] return currentSortDir === 'asc'
+187: [3] ? new Date(va) - new Date(vb)
+188: [3] : new Date(vb) - new Date(va);
+189: [2] }
+190: [2] if (va < vb) return currentSortDir === 'asc' ? -1 : 1;
+191: [2] if (va > vb) return currentSortDir === 'asc' ? 1 : -1;
+192: [2] return 0;
+193: [1] });
+195: [1] // Re-append in order
+196: [1] rowGroups.forEach(g => {
+197: [2] tbody.appendChild(g.main);
+198: [2] if (g.detail) tbody.appendChild(g.detail);
+199: [1] });
+200: [0] }
+202: [0] function confirmCheckAll() {
+203: [1] const count = 80;
+204: [1] const overlay = document.createElement('div');
+205: [1] overlay.className = 'confirm-overlay';
+206: [1] overlay.innerHTML = `
+207: [1] <div class="confirm-card">
+208: [1] <h3>Check All ${count} PNRs?</h3>
+209: [1] <p>This will scrape all airline websites and may take a few minutes.</p>
+210: [1] <div class="confirm-actions">
+211: [1] <button class="btn-ghost" onclick="this.closest('.confirm-overlay').remove()">Cancel</button>
+212: [1] <button class="btn btn-primary" onclick="document.getElementById('check-all-form').submit(); this.closest('.confirm-overlay').remove(); setTimeout(startCheckPolling, 1000);">Check All</button>
+213: [1] </div>
+214: [1] </div>
+215: [1] `;
+216: [1] document.body.appendChild(overlay);
+217: [1] overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+218: [0] }
+220: [0] // --- Auto-dismiss flash with smooth slide-out ---
+221: [0] setTimeout(() => {
+222: [1] document.querySelectorAll('.flash').forEach(el => {
+223: [2] el.classList.add('flash-exit');
+224: [2] setTimeout(() => el.remove(), 400);
+225: [1] });
+226: [0] }, 6000);
+228: [0] // --- Scroll to bookings on success flash ---
+229: [0] if (document.querySelector('.flash-success')) {
+230: [1] setTimeout(() => {
+231: [2] const section = document.getElementById('bookings-section');
+232: [2] if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+233: [1] }, 300);
+234: [0] }
+235: [0] // --- Stop check via AJAX (no page reload) ---
+236: [0] async function stopCheckNow() {
+237: [1] function stopCheckNow() {
+238: [2] fetch("/stop-check", { method: 'POST' })
+239: [2] .then(() => {
+240: [3] document.getElementById('stop-btn-text').innerText = 'Stopping...';
+241: [2] });
+242: [1] }
+244: [1] // --- Checklist Logic ---
+245: [1] function toggleAllCheckboxes(masterCheckbox) {
+246: [2] const checkboxes = document.querySelectorAll('.booking-checkbox');
+247: [2] checkboxes.forEach(cb => {
+248: [3] cb.checked = masterCheckbox.checked;
+249: [2] });
+250: [2] updateCheckSelectedBtn();
+251: [1] }
+253: [1] function updateCheckSelectedBtn() {
+254: [2] const checkedCount = document.querySelectorAll('.booking-checkbox:checked').length;
+255: [2] const btn = document.getElementById('check-selected-btn');
+256: [2] if (checkedCount > 0) {
+257: [3] btn.disabled = false;
+258: [3] btn.querySelector('span').innerText = `Check Selected (${checkedCount})`;
+259: [3] } else {
+260: [3] btn.disabled = true;
+261: [3] btn.querySelector('span').innerText = `Check Selected`;
+262: [3] document.getElementById('select-all-bookings').checked = false;
+263: [2] }
+264: [1] }
+266: [1] function checkSelectedPnrs() {
+267: [2] const checkboxes = document.querySelectorAll('.booking-checkbox:checked');
+268: [2] if (checkboxes.length === 0) return;
+270: [2] const bookingIds = Array.from(checkboxes).map(cb => cb.value);
+272: [2] // Create a form and submit it dynamically
+273: [2] const form = document.createElement('form');
+274: [2] form.method = 'POST';
+275: [2] form.action = "/check-selected";
+277: [2] bookingIds.forEach(id => {
+278: [3] const input = document.createElement('input');
+279: [3] input.type = 'hidden';
+280: [3] input.name = 'booking_ids';
+281: [3] input.value = id;
+282: [3] form.appendChild(input);
+283: [2] });
+285: [2] document.body.appendChild(form);
+287: [2] // Show loading state
+288: [2] document.getElementById('check-selected-btn').classList.add('is-loading');
+290: [2] form.submit();
+291: [1] }
+293: [1] // --- Helper: format relative time like the Jinja filter ---
+294: [1] function timeAgo(dateStr) {
+295: [2] if (!dateStr) return 'Not yet';
+296: [2] const dt = new Date(dateStr.replace(' ', 'T'));
+297: [2] const now = new Date();
+298: [2] const diffMs = now - dt;
+299: [2] const diffSec = diffMs / 1000;
+300: [2] if (diffSec < 60) return 'Just now';
+301: [2] if (diffSec < 3600) return Math.floor(diffSec / 60) + 'm ago';
+302: [2] if (diffSec < 86400 && dt.toDateString() === now.toDateString()) {
+303: [3] return 'Today, ' + dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+304: [2] }
+305: [2] const yesterday = new Date(now);
+306: [2] yesterday.setDate(yesterday.getDate() - 1);
+307: [2] if (dt.toDateString() === yesterday.toDateString()) {
+308: [3] return 'Yesterday, ' + dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+309: [2] }
+310: [2] return dt.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) + ', ' +
+311: [2] dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+312: [1] }
+314: [1] // --- Live-update booking rows from API data ---
+315: [1] let lastCheckedCount = 0;
+316: [1] async function refreshBookingRows() {
+317: [2] try {
+318: [3] const res = await fetch('/api/bookings');
+319: [3] const bookings = await res.json();
+320: [3] bookings.forEach(b => {
+321: [4] // Update desktop table rows
+322: [4] const row = document.querySelector(`tr[data-booking-id="${b.id}"]`);
+323: [4] if (row) {
+324: [5] // Status badge
+325: [5] const statusCell = row.querySelector('.status-badge');
+326: [5] if (statusCell) {
+327: [6] const statusClass = 'status-' + b.status.toLowerCase().replace(/ /g, '-');
+328: [6] statusCell.className = 'status-badge ' + statusClass;
+329: [6] statusCell.textContent = b.status;
+330: [5] }
+331: [5] // Last checked
+332: [5] const metaCell = row.querySelector('.meta-cell');
+333: [5] if (metaCell) {
+334: [6] metaCell.textContent = timeAgo(b.last_checked);
+335: [6] metaCell.setAttribute('data-sort-key', b.last_checked);
+336: [5] }
+337: [4] }
+338: [4] // Update mobile cards
+339: [4] const card = document.querySelector(`div.flight-card[data-booking-id="${b.id}"]`);
+340: [4] if (card) {
+341: [5] const statusBadge = card.querySelector('.status-badge');
+342: [5] if (statusBadge) {
+343: [6] const statusClass = 'status-' + b.status.toLowerCase().replace(/ /g, '-');
+344: [6] statusBadge.className = 'status-badge ' + statusClass;
+345: [6] statusBadge.textContent = b.status;
+346: [5] }
+347: [5] // Update border class
+348: [5] card.className = card.className.replace(/status-border-[\w-]+/g, '');
+349: [5] card.classList.add('flight-card', 'status-border-' + b.status.toLowerCase().replace(/ /g, '-'));
+350: [5] // Last checked
+351: [5] const checkedEl = card.querySelector('.meta-muted');
+352: [5] if (checkedEl) checkedEl.textContent = timeAgo(b.last_checked);
+353: [4] }
+354: [3] });
+355: [3] } catch (e) {
+356: [3] console.error('Booking refresh error:', e);
+357: [2] }
+358: [1] }
+360: [1] // --- Check progress polling ---
+361: [1] let checkPolling = null;
+362: [1] function startCheckPolling() {
+363: [2] const bar = document.getElementById('check-progress-bar');
+364: [2] const stopForm = document.getElementById('stop-check-form');
+365: [2] const checkForm = document.getElementById('check-all-form');
+366: [2] const countEl = document.getElementById('check-progress-count');
+368: [2] checkPolling = setInterval(async () => {
+369: [3] try {
+370: [4] const res = await fetch('/api/check-status');
+371: [4] const data = await res.json();
+373: [4] if (data.running && !data.stop_requested) {
+374: [5] // Show stop, hide check
+375: [5] if (stopForm) stopForm.style.display = '';
+376: [5] if (checkForm) checkForm.style.display = 'none';
+377: [5] if (bar) {
+378: [6] bar.style.display = '';
+379: [6] const pct = data.total > 0 ? (data.checked / data.total) * 100 : 0;
+380: [6] bar.style.width = pct + '%';
+381: [5] }
+382: [5] if (countEl) countEl.textContent = data.checked + '/' + data.total;
+384: [5] // Live-update rows whenever a new PNR was checked
+385: [5] if (data.checked > lastCheckedCount) {
+386: [6] lastCheckedCount = data.checked;
+387: [6] refreshBookingRows();
+388: [5] }
+389: [5] } else {
+390: [5] // Done or stopped — show check, hide stop, do a final refresh
+391: [5] clearInterval(checkPolling);
+392: [5] if (bar) { bar.style.width = data.stop_requested ? '' : '100%'; }
+393: [5] // Final refresh of booking data, then reload for clean state
+394: [5] await refreshBookingRows();
+395: [5] setTimeout(() => window.location.reload(), 800);
+396: [4] }
+397: [4] } catch (e) {
+398: [4] console.error('Poll error:', e);
+399: [3] }
+400: [2] }, 2000);
+401: [1] }
+403: [1] // Start polling if a check is running

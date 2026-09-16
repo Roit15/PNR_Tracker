@@ -25,10 +25,16 @@ MAX_RETRIES = 3
 
 def _try_check_pnr(pnr, lastname, attempt=1):
     """Single attempt to check Singapore Airlines PNR. Returns result dict or raises."""
-    driver = _create_stealth_driver()
+    driver = None
     try:
         logger.info(f"[SA Attempt {attempt}/{MAX_RETRIES}] Checking PNR: {pnr}")
 
+        from scraper import _is_cloud
+        if _is_cloud():
+            logger.warning("Singapore Airlines scraping is disabled on Cloud/VPS due to reCAPTCHA IP blocks.")
+            return {'status': 'Pending Check', 'detail': 'Will be checked by local sync engine.', 'raw_text': ''}
+
+        driver = _create_stealth_driver()
         driver.get(SA_URL)
         wait = WebDriverWait(driver, 30)
         
@@ -40,13 +46,12 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         except Exception:
             pass
 
-        # The first text input is usually PNR, the second is Last Name (has id lasFamilyNameInputField)
-        text_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
-        if not text_inputs:
-            raise Exception("Could not find input fields")
-            
-        pnr_input = text_inputs[0]
-        lname_input = driver.find_element(By.ID, "lasFamilyNameInputField")
+        # Last Name has id lasFamilyNameInputField, PNR is the text input immediately preceding it
+        try:
+            lname_input = driver.find_element(By.ID, "lasFamilyNameInputField")
+            pnr_input = driver.find_element(By.XPATH, '//input[@id="lasFamilyNameInputField"]/preceding::input[@type="text"][1]')
+        except Exception:
+            raise Exception("Could not find PNR and Last Name input fields")
         
         pnr_input.clear()
         pnr_input.send_keys(pnr)
@@ -112,10 +117,8 @@ def _try_check_pnr(pnr, lastname, attempt=1):
         return result
 
     finally:
-        try:
-            driver.get("about:blank")
-        except Exception:
-            pass
+        from scraper import _kill_driver
+        _kill_driver(driver)
 
 def _extract_booking_detail(text):
     """Extract clean booking info lines."""

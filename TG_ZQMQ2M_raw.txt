@@ -38,6 +38,8 @@ Economy (W)
 TG 639
 TG 337
 Flight Details
+Carbon emission per seat:
+366 Kgs CO2e
 Passengers
 MR CLEMENT JESHURUN SAMUEL
 Adult
@@ -58,8 +60,8 @@ See All Extra Services
 MR CLEMENT JESHURUN SAMUEL
 HKG - BKK
 Baggage
-Not Provided
-Not Provided
+1 Pc, 23 kg
+7 kg
 Seat
 Not Provided
 Meals
@@ -67,8 +69,8 @@ Not Provided
 More
 BKK - MAA
 Baggage
-Not Provided
-Not Provided
+1 Pc, 23 kg
+7 kg
 Seat
 Not Provided
 Meals
@@ -80,6 +82,7 @@ THAI may refuse refund if application is made later than 90 days after expiry of
 After electronic ticket is issued, the itinerary receipt containing ticket number will be sent to your e-mail address. Thus, it is mandatory to check your electronic ticket status in your e-mail.
 You may also check your ticket status at our website. If the ticket is issued, ticket number will advised in your reservation record.
 Overseas THAI Contact Center
+(+852) 2495 1115
 MAKE YOUR JOURNEY EVEN SMOOTHER
 Transportation
 Discover transportation options designed to simplify your travel, enhance comfort, and ensure a smooth journey every time.
@@ -90,18 +93,14 @@ Your Documents
 Print Itinerary
 Travel Documents
 More Information
+Full Fare Rules and Conditions
 Baggage Allowance
 Dangerous Goods Policy
 Conditions of Contract
 Overseas THAI Contact Center
+(+852) 2495 1115
 Retrieve Another Booking
 Book Another Flight
 DOWNLOAD THE APP NOW
 Easily manage, track, and modify your trip on the go. All your plans in one comprehensive digital travel companion.
 CONNECT WITH US
-
-We Value Your Privacy
-By continuing to browse or by clicking “Accept All” you agree to the storing of first and third-party cookies on your device to enhance site navigation, analyze site usage, and assist in our marketing effort.
-For more detail please see our Privacy Policy and Cookie Policy
-Customize
-Accept All

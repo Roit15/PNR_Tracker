@@ -38,8 +38,8 @@ Economy (W)
 TG 639
 TG 337
 Flight Details
-Total Carbon Footprint:
-376 Kgs CO2e
+Carbon emission per seat:
+366 Kgs CO2e
 Passengers
 MR DIVINY DOROTHY SAMUEL
 Adult

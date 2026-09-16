@@ -73,11 +73,10 @@ def _create_stealth_driver():
         # Local: visible popup window
         # Cloud: must be headless (no display)
         if _is_cloud():
-            options.add_argument('--headless=new')
-            options.add_argument('--disable-gpu')
+            # Run headful inside Xvfb instead of headless
             options.add_argument('--no-sandbox')
             options.add_argument('--disable-dev-shm-usage')
-            logger.info("Cloud mode: headless + no-sandbox")
+            logger.info("Cloud mode: headful (Xvfb) + no-sandbox")
         else:
             logger.info("Local mode: visible popup window (undetected-chromedriver)")
 
@@ -463,7 +462,8 @@ def _try_check_pnr(pnr, firstname, lastname, attempt=1):
         return result
 
     finally:
-        driver.quit()
+        from scraper import _kill_driver
+        _kill_driver(driver)
 
 
 def _extract_around_keyword(text, keyword, window=300):

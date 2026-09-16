@@ -17,30 +17,6 @@ DEL
 11 OCT
 Departs at
 14:35
-Additional Services
-Denpasar Bali - Delhi
-Seats
-
-FromIDR 213,200
-
-Baggage
-
-FromIDR 1,758,51010%
-
-Original Price: IDR 1,953,900
-
-Sports Equipment
-
-FromIDR 639,500
-
-Meals
-
-Complimentary
-
-Special Assistance
-
-Book assistance
-
 Passengers
 AB
 Ajay Bansal
@@ -51,7 +27,6 @@ Date of Birth
 10 Mar 1994
 E-Ticket Number
 098 5234852856
-Baggage Details
 Standard Baggage Allowance
 Dangerous Goods Policy
 

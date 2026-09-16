@@ -9,7 +9,7 @@ mkdir -p "$LOG_DIR"
 
 # Kill existing processes
 echo "Killing any existing web app and tunnel instances..."
-pkill -f "python app.py"
+pkill -i -f "python.*app.py"
 pkill -f "cloudflared tunnel run"
 
 # Wait to ensure they are killed
