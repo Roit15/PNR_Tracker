@@ -381,7 +381,28 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
 
         # Navigate to My Bookings page
         driver.get(INDIGO_URL)
-        time.sleep(random.uniform(5, 8))
+        # CRITICAL: Wait longer for Akamai's sensor scripts to complete.
+        # Akamai generates session tokens after its JS runs. If we interact
+        # too fast, the token is invalid and the booking API returns 401.
+        wait_time = random.uniform(15, 20)
+        logger.info(f"Waiting {wait_time:.1f}s for Akamai sensors to complete...")
+        # Simulate human presence during wait: scroll slowly
+        for _ in range(3):
+            time.sleep(wait_time / 4)
+            driver.execute_script(
+                "window.scrollBy(0, arguments[0]);",
+                random.randint(30, 100)
+            )
+        time.sleep(wait_time / 4)
+        driver.execute_script("window.scrollTo(0, 0);")
+
+        # Check if Akamai _abck cookie is present (indicates sensors ran)
+        cookies = {c['name']: c['value'] for c in driver.get_cookies()}
+        if '_abck' in cookies:
+            logger.info("Akamai _abck cookie present — sensors completed OK")
+        else:
+            logger.warning("No _abck cookie — Akamai sensors may not have run, waiting extra 5s")
+            time.sleep(5)
 
         # Early session-expired check (Akamai may block before page loads)
         if _is_session_expired(driver):
@@ -415,42 +436,79 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
             time.sleep(random.uniform(0.08, 0.2))
         time.sleep(random.uniform(0.8, 1.5))
 
-        # Dismiss cookie banner again — it sometimes re-appears after user interaction
-        _dismiss_cookie_banner(driver, timeout=2)
+        # Dismiss cookie banner again right before submitting — critical step
+        _dismiss_cookie_banner(driver, timeout=3)
+        time.sleep(0.5)
 
-        # Click Get Started
+        # Also hide any remaining cookie banner via CSS to prevent click interception
+        driver.execute_script("""
+            // Hide cookie banners
+            var banners = document.querySelectorAll('.cc-window, .cc-banner, [class*="cookie"], [id*="cookie"]');
+            banners.forEach(function(b) { b.style.display = 'none'; });
+            // Hide IndiGo's 6Eskai chat widget and any other floating overlays
+            var widgets = document.querySelectorAll(
+                '[class*="chat"], [id*="chat"], [class*="eskai"], [id*="eskai"], ' +
+                '[class*="widget"], [id*="widget"], [class*="launcher"], [id*="launcher"], ' +
+                'iframe[src*="chat"], iframe[src*="bot"], iframe[title*="chat"]'
+            );
+            widgets.forEach(function(w) { w.style.display = 'none'; });
+        """)
+
+        # Click Get Started — remove disabled state first (IndiGo button may be stuck as disabled
+        # by Angular form validation even when fields are filled via Selenium)
         get_started = wait.until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[title="Get Started"]'))
+            EC.presence_of_element_located((By.CSS_SELECTOR, 'button[title="Get Started"]'))
         )
+        driver.execute_script("""
+            var btn = arguments[0];
+            btn.removeAttribute('disabled');
+            btn.classList.remove('skyplus-button--disabled');
+        """, get_started)
         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", get_started)
-        time.sleep(random.uniform(0.5, 1.0))
+        time.sleep(0.5)
+        driver.execute_script("arguments[0].click();", get_started)
+        logger.info("Clicked Get Started (removed disabled + JS click)")
 
-        # Try ActionChains first (more human-like), fall back to JS click
-        clicked = False
+        # Also press Enter on the email field — keyboard submit bypasses overlay interception
         try:
-            ActionChains(driver).move_to_element(get_started).pause(0.3).click().perform()
-            clicked = True
+            from selenium.webdriver.common.keys import Keys
+            email_input.send_keys(Keys.RETURN)
         except Exception:
             pass
-        if not clicked:
-            driver.execute_script("arguments[0].click();", get_started)
-            logger.debug("Used JS click fallback for Get Started button")
 
-        # Check 5 seconds in: are we still stuck on the input form?
-        time.sleep(5)
+        # Check 6 seconds in: are we still on the input form?
+        time.sleep(6)
         quick_check = driver.find_element(By.TAG_NAME, 'body').text
         if 'pnr / booking reference' in quick_check.lower() and 'get started' in quick_check.lower():
-            logger.warning("Still on form after first click — dismissing banner and retrying")
-            # Try dismissing the cookie banner one more time (it may have blocked the click)
-            _dismiss_cookie_banner(driver, timeout=3)
-            time.sleep(0.5)
+            logger.warning("Still on form after first click — force-hiding all overlays and re-clicking")
+            # Force-hide ALL possible floating overlays (banner, chat widget, privacy)
+            driver.execute_script("""
+                var selectors = [
+                    '.cc-window', '.cc-revoke', '.cc-banner',
+                    '[class*="cookie"]', '[id*="cookie"]',
+                    '[id*="consent"]', '[class*="consent"]',
+                    '[class*="privacy"]', '[id*="privacy"]',
+                    '[class*="chat"]', '[id*="chat"]',
+                    '[class*="eskai"]', '[id*="eskai"]',
+                    '[class*="widget"]', '[id*="widget"]',
+                    '[class*="launcher"]', '[id*="launcher"]',
+                    'iframe'
+                ];
+                selectors.forEach(function(sel) {
+                    var elems = document.querySelectorAll(sel);
+                    elems.forEach(function(e) {
+                        e.style.cssText = 'display:none !important; visibility:hidden !important; pointer-events:none !important;';
+                    });
+                });
+            """)
+            time.sleep(0.3)
             try:
                 btn = driver.find_element(By.CSS_SELECTOR, 'button[title="Get Started"]')
-                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
                 driver.execute_script("arguments[0].click();", btn)
-                logger.info("JS retry click sent")
+                logger.info("Retry JS click sent")
             except Exception as e:
-                logger.warning(f"JS retry click also failed: {e}")
+                logger.warning(f"Retry click failed: {e}")
+
 
         # Wait for the loading screen / spinner to fully clear after click
         time.sleep(8)
