@@ -553,7 +553,7 @@ def start_background_check(bookings_to_check):
                     
                     batch = indigo_keys[batch_start:batch_start + BATCH_SIZE]
                     futures = {}
-                    with ThreadPoolExecutor(max_workers=BATCH_SIZE) as executor:
+                    with ThreadPoolExecutor(max_workers=1) as executor:
                         for key in batch:
                             if check_state['stop_requested']:
                                 break
@@ -569,6 +569,8 @@ def start_background_check(bookings_to_check):
                             check_state['current_pnr'] = pnr
                             future = executor.submit(check_pnr_by_airline, pnr, lastname, airline, firstname or '')
                             futures[future] = key
+                            import time, random
+                            time.sleep(random.uniform(2.0, 4.0))  # Prevent Akamai burst rate limiting
                             
                         for future in as_completed(futures):
                             if check_state['stop_requested']:

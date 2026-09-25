@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 # Statuses that trigger an immediate urgent alert
 ALERT_STATUSES = {'Cancelled', 'Rescheduled'}
 
-# IndiGo batch size — 10 parallel Chrome windows
-INDIGO_BATCH_SIZE = 10
+# IndiGo batch size — 2 parallel Chrome windows (reduced to prevent high CPU usage on VPS)
+INDIGO_BATCH_SIZE = 2
 
 
 def _kill_zombie_chromes():
@@ -146,7 +146,7 @@ def _check_all_pnrs():
 
             # Launch parallel checks
             futures = {}
-            with ThreadPoolExecutor(max_workers=INDIGO_BATCH_SIZE) as executor:
+            with ThreadPoolExecutor(max_workers=1) as executor:
                 for (pnr, airline) in batch:
                     rows = indigo_pnrs[(pnr, airline)]
                     # Use info from first row for the check
@@ -154,6 +154,9 @@ def _check_all_pnrs():
                     logger.info(f"  Launching IndiGo check: PNR={pnr}")
                     future = executor.submit(_check_single_pnr, pnr, lastname, airline, firstname)
                     futures[future] = (pnr, airline)
+                    
+                    import time, random
+                    time.sleep(random.uniform(2.0, 4.0))
 
                 for future in as_completed(futures):
                     pnr, airline = futures[future]
