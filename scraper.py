@@ -14,6 +14,8 @@ import ssl
 import time
 import signal
 import logging
+import tempfile
+import shutil
 
 # Module-level SSL fix — persistent across retries
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -43,9 +45,13 @@ def _is_cloud():
 import random
 
 def _kill_driver(driver):
-    """Aggressively kill Chrome driver and ALL child processes to prevent orphans."""
+    """Aggressively kill Chrome driver and ALL child processes to prevent orphans.
+    Also removes the isolated temp profile directory created for this session.
+    """
     if driver is None:
         return
+
+    tmp_profile = getattr(driver, '_tmp_profile', None)
 
     # Step 1: Try to get the Chrome process PID before quitting
     chrome_pid = getattr(driver, 'browser_pid', None)
@@ -83,47 +89,74 @@ def _kill_driver(driver):
             except psutil.NoSuchProcess:
                 pass
         logger.debug(f"Killed Chrome process tree via psutil (pids={pids_to_kill})")
-        return
     except ImportError:
-        pass
+        # Step 4: Fallback — kill PIDs directly with SIGKILL
+        for pid in pids_to_kill:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
 
-    # Step 4: Fallback — kill PIDs directly with SIGKILL
-    for pid in pids_to_kill:
+    # Step 5: Clean up isolated temp profile to avoid disk accumulation
+    if tmp_profile and os.path.exists(tmp_profile):
         try:
-            os.kill(pid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError):
-            pass
+            shutil.rmtree(tmp_profile, ignore_errors=True)
+            logger.debug(f"Removed temp profile: {tmp_profile}")
+        except Exception as e:
+            logger.debug(f"Could not remove temp profile {tmp_profile}: {e}")
+
+
+# Rotating user-agents to reduce Akamai fingerprinting across sequential PNR checks
+_USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+]
 
 
 def _create_stealth_driver():
     """Create a Chrome driver with advanced stealth to bypass Akamai bot detection.
     
     Strategy:
-    1. Primary: undetected-chromedriver (patches Chrome binary to remove automation flags)
+    1. Primary: undetected-chromedriver with a FRESH isolated temp profile per run
     2. Fallback: standard Selenium + selenium-stealth (JS-level patching)
+
+    Key fix: each call creates a unique --user-data-dir so Akamai cannot
+    correlate sequential PNR lookups via a shared profile fingerprint.
     """
+    # Fresh isolated temp profile — deleted after driver quits
+    tmp_profile = tempfile.mkdtemp(prefix='uc_indigo_')
+    ua = random.choice(_USER_AGENTS)
+
     # Try undetected-chromedriver first (best for Akamai)
     try:
         import undetected_chromedriver as uc
         
         uc_options = uc.ChromeOptions()
+        uc_options.add_argument(f'--user-data-dir={tmp_profile}')
         uc_options.add_argument('--start-maximized')
         uc_options.add_argument('--window-size=1920,1080')
         uc_options.add_argument('--no-first-run')
         uc_options.add_argument('--no-default-browser-check')
         uc_options.add_argument('--lang=en-US,en;q=0.9')
+        uc_options.add_argument(f'--user-agent={ua}')
         
         if _is_cloud():
             # Run headful inside Xvfb instead of headless to prevent undetected-chromedriver crashes
             uc_options.add_argument('--no-sandbox')
             uc_options.add_argument('--disable-dev-shm-usage')
+            uc_options.add_argument('--disable-software-rasterizer')
+            uc_options.add_argument('--disable-extensions')
+            uc_options.add_argument('--mute-audio')
             logger.info("Cloud mode: headful (Xvfb) + undetected-chromedriver")
         else:
             uc_options.add_argument('--headless=new')
             logger.info("Local mode: headless (undetected-chromedriver)")
         
         driver = uc.Chrome(options=uc_options, version_main=153, use_subprocess=True)
-        logger.info("Using undetected-chromedriver for IndiGo/Singapore")
+        driver._tmp_profile = tmp_profile  # track for cleanup
+        logger.info(f"Using undetected-chromedriver for IndiGo/Singapore (ua={ua[:40]}...)")
         return driver
     except Exception as e:
         logger.warning(f"undetected-chromedriver failed ({e}), falling back to selenium-stealth")
@@ -150,12 +183,17 @@ def _create_stealth_driver():
     else:
         logger.info("Local mode: visible popup window (stealth fallback)")
 
+    options.add_argument(f'--user-data-dir={tmp_profile}')
+    options.add_argument(f'--user-agent={ua}')
+
     try:
         from webdriver_manager.chrome import ChromeDriverManager
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
     except Exception:
         driver = webdriver.Chrome(options=options)
+
+    driver._tmp_profile = tmp_profile  # track for cleanup
 
     # Apply selenium-stealth for JS-level anti-detection
     try:
@@ -238,8 +276,17 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
             time.sleep(1)
             page_text = driver.find_element(By.TAG_NAME, 'body').text
             text_lower = page_text.lower()
-            
-            # The loading screen might contain generic keywords. 
+
+            # --- Detect IndiGo's "session expired" bot-challenge page ---
+            # Akamai shows this after detecting automated/repeated requests.
+            # Raise immediately so check_pnr_status() retries with a fresh browser.
+            if "you've been away" in text_lower or "session expired" in text_lower or \
+               "looks like your session" in text_lower:
+                raise Exception(
+                    "IndiGo session expired (Akamai bot-challenge). Will retry with a fresh browser."
+                )
+
+            # The loading screen might contain generic keywords.
             # We require the text to be somewhat substantial or contain specific error phrases.
             if any(kw in text_lower for kw in ['invalid', 'not found', 'no booking', 'error']):
                 logger.info(f"Got error response after {i+1}s")
@@ -251,8 +298,13 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
         else:
             logger.info("Timed out waiting for results (20s), proceeding with current page")
 
-        # Re-read final page content
+        # Final session-expired check on the settled page (also serves as the definitive re-read)
         page_text = driver.find_element(By.TAG_NAME, 'body').text
+        if "you've been away" in page_text.lower() or "session expired" in page_text.lower() or \
+           "looks like your session" in page_text.lower():
+            raise Exception(
+                "IndiGo session expired (Akamai bot-challenge) on final page. Will retry with a fresh browser."
+            )
 
 
         # Save screenshot for debugging
@@ -568,8 +620,12 @@ def check_pnr_status(pnr, lastname_or_email):
             last_error = e
             logger.warning(f"Attempt {attempt}/{MAX_RETRIES} failed for PNR {pnr}: {e}")
             if attempt < MAX_RETRIES:
-                wait_secs = attempt * 10
-                logger.info(f"Waiting {wait_secs}s before retry...")
+                # Exponential back-off with jitter: 15-25s, 25-40s
+                # The longer delay helps defeat Akamai's rate/pattern detection.
+                base_wait = attempt * 15
+                jitter = random.uniform(0, 10)
+                wait_secs = base_wait + jitter
+                logger.info(f"Waiting {wait_secs:.1f}s before retry (attempt {attempt}/{MAX_RETRIES})...")
                 time.sleep(wait_secs)
 
     # All retries exhausted
