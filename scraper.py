@@ -208,7 +208,8 @@ def _kill_driver(driver):
             except (ProcessLookupError, PermissionError):
                 pass
 
-    if tmp_profile and os.path.exists(tmp_profile):
+    # We do NOT remove the profile if it is persistent, but we keep the variable for compatibility
+    if tmp_profile and os.path.exists(tmp_profile) and 'indigo_profile_' in tmp_profile:
         try:
             shutil.rmtree(tmp_profile, ignore_errors=True)
             logger.debug(f"Removed temp profile: {tmp_profile}")
@@ -228,8 +229,9 @@ def _create_stealth_driver():
       correlating sessions across multiple checks.
     """
     ua = random.choice(_USER_AGENTS)
-    tmp_profile = tempfile.mkdtemp(prefix='indigo_profile_')
-
+    persistent_profile = os.path.expanduser('~/vibeCoding/PNR_Tracker/indigo_profile')
+    os.makedirs(persistent_profile, exist_ok=True)
+    tmp_profile = persistent_profile
     options = Options()
     options.add_argument('--window-size=1920,1080')
     options.add_argument('--disable-blink-features=AutomationControlled')
@@ -381,6 +383,14 @@ def _try_check_pnr(pnr, lastname_or_email, attempt=1):
 
         # Navigate to My Bookings page
         driver.get(INDIGO_URL)
+        
+        # Clear local/session storage to prevent Angular from triggering "Session Expired" modal from previous runs
+        try:
+            driver.execute_script("window.localStorage.clear(); window.sessionStorage.clear();")
+            driver.refresh()
+            logger.info("Cleared local/session storage and refreshed to avoid stale Angular state.")
+        except Exception as e:
+            logger.warning(f"Could not clear storage: {e}")
         # CRITICAL: Wait longer for Akamai's sensor scripts to complete.
         # Akamai generates session tokens after its JS runs. If we interact
         # too fast, the token is invalid and the booking API returns 401.
@@ -799,9 +809,16 @@ def extract_booking_detail(text):
 
 def check_pnr_status(pnr, lastname_or_email):
     """
-    Check PNR status with retries.
-    Each retry creates a fresh browser instance with exponential back-off + jitter.
+    Check PNR status using the direct API scraper (curl_cffi).
+    Falls back to Selenium if the API approach fails.
     """
+    try:
+        import scraper_indigo_api
+        logger.info(f"Checking PNR {pnr} using API scraper (bypasses Akamai)")
+        return scraper_indigo_api.check_pnr_indigo_api(pnr, lastname_or_email)
+    except Exception as api_err:
+        logger.warning(f"API scraper failed: {api_err}. Falling back to Selenium...")
+        
     last_error = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
