@@ -120,30 +120,30 @@ def _create_stealth_driver():
     
     Strategy:
     1. Primary: undetected-chromedriver with a FRESH isolated temp profile per run
+       NOTE: user_data_dir must be passed to uc.Chrome() constructor — NOT as a
+       Chrome option — otherwise UC crashes with 'Chrome instance exited'.
     2. Fallback: standard Selenium + selenium-stealth (JS-level patching)
-
-    Key fix: each call creates a unique --user-data-dir so Akamai cannot
-    correlate sequential PNR lookups via a shared profile fingerprint.
     """
-    # Fresh isolated temp profile — deleted after driver quits
-    tmp_profile = tempfile.mkdtemp(prefix='uc_indigo_')
     ua = random.choice(_USER_AGENTS)
 
     # Try undetected-chromedriver first (best for Akamai)
     try:
         import undetected_chromedriver as uc
-        
+
+        # Create a fresh temp dir for UC to use as its profile root.
+        # UC expects the parent dir; it creates a subdirectory inside it.
+        tmp_root = tempfile.mkdtemp(prefix='uc_indigo_')
+
         uc_options = uc.ChromeOptions()
-        uc_options.add_argument(f'--user-data-dir={tmp_profile}')
+        # DO NOT add --user-data-dir here — UC manages it via constructor
         uc_options.add_argument('--start-maximized')
         uc_options.add_argument('--window-size=1920,1080')
         uc_options.add_argument('--no-first-run')
         uc_options.add_argument('--no-default-browser-check')
         uc_options.add_argument('--lang=en-US,en;q=0.9')
         uc_options.add_argument(f'--user-agent={ua}')
-        
+
         if _is_cloud():
-            # Run headful inside Xvfb instead of headless to prevent undetected-chromedriver crashes
             uc_options.add_argument('--no-sandbox')
             uc_options.add_argument('--disable-dev-shm-usage')
             uc_options.add_argument('--disable-software-rasterizer')
@@ -153,10 +153,16 @@ def _create_stealth_driver():
         else:
             uc_options.add_argument('--headless=new')
             logger.info("Local mode: headless (undetected-chromedriver)")
-        
-        driver = uc.Chrome(options=uc_options, version_main=153, use_subprocess=True)
-        driver._tmp_profile = tmp_profile  # track for cleanup
-        logger.info(f"Using undetected-chromedriver for IndiGo/Singapore (ua={ua[:40]}...)")
+
+        # Pass user_data_dir to constructor so UC sets it correctly
+        driver = uc.Chrome(
+            options=uc_options,
+            version_main=153,
+            use_subprocess=True,
+            user_data_dir=tmp_root,
+        )
+        driver._tmp_profile = tmp_root  # track for cleanup
+        logger.info(f"Using undetected-chromedriver for IndiGo (ua={ua[:40]}...)")
         return driver
     except Exception as e:
         logger.warning(f"undetected-chromedriver failed ({e}), falling back to selenium-stealth")
@@ -183,6 +189,8 @@ def _create_stealth_driver():
     else:
         logger.info("Local mode: visible popup window (stealth fallback)")
 
+    # Fallback: standard Selenium + selenium-stealth — also gets a fresh isolated profile
+    tmp_profile = tempfile.mkdtemp(prefix='selenium_indigo_')
     options.add_argument(f'--user-data-dir={tmp_profile}')
     options.add_argument(f'--user-agent={ua}')
 
