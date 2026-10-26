@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from database import init_db, add_booking, get_active_bookings, get_booking, delete_booking, deactivate_past_bookings, update_booking_status, get_completed_bookings
 from pdf_parser import parse_booking
 from scheduler import run_status_check, setup_scheduler
-from scraper_router import check_pnr_by_airline
+from scraper_router import check_pnr_by_airline, check_indigo_batch
 from sync import get_all_bookings_for_sync, merge_remote_bookings, run_sync, SYNC_SECRET
 import scraper as scraper_module
 import threading
@@ -117,6 +117,26 @@ def format_time_filter(value):
     if not value or value == '—':
         return '—'
     return value
+
+
+def _normalize_date(date_str):
+    """Normalize various date formats to YYYY-MM-DD for consistent DB storage.
+    Handles: '03 Oct, 26', '03 Oct 2026', '2026-10-03', etc.
+    """
+    if not date_str:
+        return date_str
+    date_str = str(date_str).strip()
+    # Already in YYYY-MM-DD format
+    if len(date_str) == 10 and date_str[4] == '-' and date_str[7] == '-':
+        return date_str
+    # Try common formats from scrapers
+    for fmt in ('%d %b, %y', '%d %b %y', '%d %b, %Y', '%d %b %Y', '%d-%b-%Y', '%d/%m/%Y', '%d/%m/%y'):
+        try:
+            return datetime.strptime(date_str, fmt).strftime('%Y-%m-%d')
+        except ValueError:
+            continue
+    # Return as-is if nothing matched
+    return date_str
 
 
 # Upload config
@@ -294,13 +314,13 @@ def add_manual():
             return redirect(url_for('index'))
 
         # flight_info is now a list of segments (1 for one-way, 2 for round-trip)
-        segments = result.get('flight_info', [{}])
+        segments = result.get('flights') or result.get('flight_info', [{}])
         if isinstance(segments, dict):  # backward compat
             segments = [segments]
 
         total_added = 0
         for seg in segments:
-            flight_date = seg.get('flight_date')
+            flight_date = _normalize_date(seg.get('flight_date'))
             if not flight_date:
                 if result['status'] in ('Cancelled', 'Payment Pending'):
                     flight_date = datetime.now().strftime('%Y-%m-%d')
@@ -377,7 +397,7 @@ def check_single(booking_id):
         status_result = check_pnr_by_airline(pnr, lastname, airline, firstname or '')
 
         # Discover and add any missing segments (e.g., return leg of a round-trip)
-        segments = status_result.get('flight_info', [])
+        segments = status_result.get('flights') or status_result.get('flight_info', [])
         if isinstance(segments, dict):
             segments = [segments]
 
@@ -391,7 +411,7 @@ def check_single(booking_id):
                     passenger_name=fetched_name,
                     flight_number=seg.get('flight_number', ''),
                     route=seg.get('route', ''),
-                    flight_date=seg.get('flight_date'),
+                    flight_date=_normalize_date(seg.get('flight_date')),
                     departure_time=seg.get('departure_time', ''),
                     arrival_time=seg.get('arrival_time', ''),
                     passenger_lastname=lastname,
@@ -514,7 +534,7 @@ def start_background_check(bookings_to_check):
                 if check_state['stop_requested']:
                     return
                 
-                segments = status_result.get('flight_info', [])
+                segments = status_result.get('flights') or status_result.get('flight_info', [])
                 if isinstance(segments, dict):
                     segments = [segments]
 
@@ -528,7 +548,7 @@ def start_background_check(bookings_to_check):
                             passenger_name=fetched_name,
                             flight_number=seg.get('flight_number', ''),
                             route=seg.get('route', ''),
-                            flight_date=seg.get('flight_date'),
+                            flight_date=_normalize_date(seg.get('flight_date')),
                             departure_time=seg.get('departure_time', ''),
                             arrival_time=seg.get('arrival_time', ''),
                             passenger_lastname=rows[0].get('passenger_lastname', ''),
@@ -541,51 +561,39 @@ def start_background_check(bookings_to_check):
                 check_state['last_checked_status'] = status_result['status']
                 check_state['checked'] += 1
 
-            # Phase 1: IndiGo batched
+            # Phase 1: IndiGo — SINGLE SESSION (loads page once, no Akamai blocks)
             if indigo_pnrs and not check_state['stop_requested']:
                 check_state['phase'] = 'INDIGO'
                 indigo_keys = list(indigo_pnrs.keys())
-                BATCH_SIZE = 10
-                
-                for batch_start in range(0, len(indigo_keys), BATCH_SIZE):
-                    if check_state['stop_requested']:
-                        break
-                    
-                    batch = indigo_keys[batch_start:batch_start + BATCH_SIZE]
-                    futures = {}
-                    with ThreadPoolExecutor(max_workers=1) as executor:
-                        for key in batch:
-                            if check_state['stop_requested']:
+
+                pnr_batch_list = []
+                for key in indigo_keys:
+                    rows = indigo_pnrs[key]
+                    b = rows[0]
+                    lastname = b.get('passenger_lastname', '')
+                    if not lastname and b.get('passenger_name'):
+                        parts = b['passenger_name'].strip().split()
+                        lastname = parts[-1] if parts else ''
+                    pnr, airline = key
+                    pnr_batch_list.append((pnr, lastname))
+
+                def _on_indigo_progress(pnr, last_name, status_result, idx, total):
+                    key = (pnr, 'indigo')
+                    if key not in indigo_pnrs:
+                        for k in indigo_keys:
+                            if k[0].upper() == pnr.upper():
+                                key = k
                                 break
-                            pnr, airline = key
-                            rows = indigo_pnrs[key]
-                            b = rows[0]
-                            lastname = b.get('passenger_lastname', '')
-                            if not lastname and b.get('passenger_name'):
-                                parts = b['passenger_name'].strip().split()
-                                lastname = parts[-1] if parts else ''
-                            firstname = b.get('passenger_firstname', '')
-                            
-                            check_state['current_pnr'] = pnr
-                            future = executor.submit(check_pnr_by_airline, pnr, lastname, airline, firstname or '')
-                            futures[future] = key
-                            import time, random
-                            time.sleep(random.uniform(2.0, 4.0))  # Prevent Akamai burst rate limiting
-                            
-                        for future in as_completed(futures):
-                            if check_state['stop_requested']:
-                                continue
-                            key = futures[future]
-                            pnr, airline = key
-                            rows = indigo_pnrs[key]
-                            try:
-                                status_result = future.result()
-                                process_status_result(pnr, rows, status_result)
-                            except Exception as e:
-                                logger.error(f"Error checking {pnr}: {e}")
-                                check_state['last_checked_pnr'] = pnr
-                                check_state['last_checked_status'] = 'Error'
-                                check_state['checked'] += 1
+                    rows = indigo_pnrs.get(key, [])
+                    check_state['current_pnr'] = pnr
+                    process_status_result(pnr, rows, status_result)
+
+                logger.info(f"Check All: checking {len(pnr_batch_list)} IndiGo PNR(s) in single session")
+                check_indigo_batch(
+                    pnr_batch_list,
+                    on_progress=_on_indigo_progress,
+                    stop_requested_fn=lambda: check_state['stop_requested']
+                )
 
             # Phase 2: SriLankan
             if srilankan_pnrs and not check_state['stop_requested']:
@@ -611,7 +619,18 @@ def start_background_check(bookings_to_check):
                         check_state['checked'] += 1
 
             # Phase 3: Other airlines
+            # Restart Chrome fresh so Singapore Airlines doesn't inherit broken IndiGo sessions
             if other_pnrs and not check_state['stop_requested']:
+                try:
+                    import subprocess
+                    subprocess.run(['pkill', '-f', 'remote-debugging-port=9224'], capture_output=True, timeout=5)
+                    import time as _time; _time.sleep(2)
+                    import chrome_launcher
+                    chrome_launcher.ensure_chrome_running()
+                    _time.sleep(2)
+                    logger.info("Restarted Chrome on port 9224 before Phase 3 (other airlines)")
+                except Exception as _e:
+                    logger.warning(f"Chrome restart before Phase 3 failed (non-fatal): {_e}")
                 check_state['phase'] = 'OTHER'
                 for key, rows in other_pnrs.items():
                     if check_state['stop_requested']:

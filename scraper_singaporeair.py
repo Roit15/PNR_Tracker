@@ -17,6 +17,26 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 # Import the stealth driver creator from the main scraper
 from scraper import _create_stealth_driver
 
+
+def _restart_chrome_fresh():
+    """Kill any existing Chrome on port 9224 and relaunch a clean instance.
+    Needed because after IndiGo batch checks the shared Chrome is often in a broken state."""
+    import subprocess
+    import socket
+    import time
+
+    # Kill existing Chrome on debugging port
+    try:
+        subprocess.run(['pkill', '-f', 'remote-debugging-port=9224'], capture_output=True, timeout=5)
+    except Exception:
+        pass
+    time.sleep(2)  # Wait for it to fully die
+
+    # Now ensure a fresh Chrome starts
+    import chrome_launcher
+    chrome_launcher.ensure_chrome_running()
+    time.sleep(2)  # Extra wait for Chrome to stabilize
+
 logger = logging.getLogger(__name__)
 
 SA_URL = "https://www.singaporeair.com/en_UK/sg/plan-travel/your-booking/managebooking/"
@@ -34,6 +54,8 @@ def _try_check_pnr(pnr, lastname, attempt=1):
             logger.warning("Singapore Airlines scraping is disabled on Cloud/VPS due to reCAPTCHA IP blocks.")
             return {'status': 'Pending Check', 'detail': 'Will be checked by local sync engine.', 'raw_text': ''}
 
+        # Restart Chrome fresh to clear any stale sessions from IndiGo batch checks
+        _restart_chrome_fresh()
         driver = _create_stealth_driver()
         driver.get(SA_URL)
         wait = WebDriverWait(driver, 30)
@@ -51,6 +73,16 @@ def _try_check_pnr(pnr, lastname, attempt=1):
             lname_input = driver.find_element(By.ID, "lasFamilyNameInputField")
             pnr_input = driver.find_element(By.XPATH, '//input[@id="lasFamilyNameInputField"]/preceding::input[@type="text"][1]')
         except Exception:
+            # Check if it's actually a WAF block before failing
+            try:
+                page_text = driver.find_element(By.TAG_NAME, 'body').text.lower()
+                if 'error code' in page_text and 'something went wrong' in page_text:
+                    raise Exception("WAF blocked")
+                elif 'access denied' in page_text or '403 forbidden' in page_text:
+                    raise Exception("Access denied (WAF)")
+            except Exception as inner_e:
+                if str(inner_e) in ["WAF blocked", "Access denied (WAF)"]:
+                    raise
             raise Exception("Could not find PNR and Last Name input fields")
         
         pnr_input.clear()

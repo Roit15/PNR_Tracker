@@ -20,8 +20,9 @@ logger = logging.getLogger(__name__)
 # Statuses that trigger an immediate urgent alert
 ALERT_STATUSES = {'Cancelled', 'Rescheduled'}
 
-# IndiGo batch size — 2 parallel Chrome windows (reduced to prevent high CPU usage on VPS)
+# IndiGo batch size — reduced to 2 to avoid Akamai rate-limiting
 INDIGO_BATCH_SIZE = 2
+INDIGO_BATCH_DELAY_SECS = 30  # cooldown between IndiGo batches
 
 
 def _kill_zombie_chromes():
@@ -127,46 +128,37 @@ def _check_all_pnrs():
 
     all_results = []
 
-    # ── Phase 1: IndiGo — batched parallel (5 at a time) ──────────────
+    # ── Phase 1: IndiGo — SINGLE SESSION (no Akamai blocks) ─────────
     if indigo_pnrs:
-        logger.info(f"═══ Phase 1: IndiGo — {len(indigo_pnrs)} unique PNR(s) in batches of {INDIGO_BATCH_SIZE} ═══")
+        logger.info(f"═══ Phase 1: IndiGo — {len(indigo_pnrs)} unique PNR(s) in single browser session ═══")
+
+        # Capture old statuses
+        old_statuses = {}
+        for (pnr, airline), rows in indigo_pnrs.items():
+            for row in rows:
+                old_statuses[row['id']] = row['status']
+
+        # Build PNR list for batch check
         indigo_keys = list(indigo_pnrs.keys())
+        pnr_batch_list = []
+        for (pnr, airline) in indigo_keys:
+            rows = indigo_pnrs[(pnr, airline)]
+            lastname, firstname, _ = _resolve_passenger_info(rows[0])
+            pnr_batch_list.append((pnr, lastname))
 
-        for batch_start in range(0, len(indigo_keys), INDIGO_BATCH_SIZE):
-            batch = indigo_keys[batch_start:batch_start + INDIGO_BATCH_SIZE]
-            batch_num = (batch_start // INDIGO_BATCH_SIZE) + 1
-            total_batches = (len(indigo_keys) + INDIGO_BATCH_SIZE - 1) // INDIGO_BATCH_SIZE
-            logger.info(f"── IndiGo batch {batch_num}/{total_batches}: {len(batch)} PNR(s) ──")
+        # Single browser session — loads page ONCE, checks all PNRs
+        from scraper_router import check_indigo_batch
+        batch_results = check_indigo_batch(pnr_batch_list)
 
-            # Capture old statuses before the parallel check
-            old_statuses = {}
-            for (pnr, airline) in batch:
-                for row in indigo_pnrs[(pnr, airline)]:
-                    old_statuses[row['id']] = row['status']
+        # Map results back to booking rows
+        for idx, ((pnr, airline), status_result) in enumerate(zip(indigo_keys, batch_results)):
+            rows = indigo_pnrs[(pnr, airline)]
+            logger.info(f"  IndiGo PNR {pnr}: {status_result['status']}")
+            results = _build_results_for_group(pnr, rows, status_result, old_statuses)
+            all_results.extend(results)
 
-            # Launch parallel checks
-            futures = {}
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                for (pnr, airline) in batch:
-                    rows = indigo_pnrs[(pnr, airline)]
-                    # Use info from first row for the check
-                    lastname, firstname, _ = _resolve_passenger_info(rows[0])
-                    logger.info(f"  Launching IndiGo check: PNR={pnr}")
-                    future = executor.submit(_check_single_pnr, pnr, lastname, airline, firstname)
-                    futures[future] = (pnr, airline)
-                    
-                    import time, random
-                    time.sleep(random.uniform(2.0, 4.0))
+        logger.info(f"── IndiGo phase complete — {len(indigo_pnrs)} PNR(s) checked in 1 session ──")
 
-                for future in as_completed(futures):
-                    pnr, airline = futures[future]
-                    rows = indigo_pnrs[(pnr, airline)]
-                    status_result = future.result()
-                    logger.info(f"  IndiGo PNR {pnr}: {status_result['status']}")
-                    results = _build_results_for_group(pnr, rows, status_result, old_statuses)
-                    all_results.extend(results)
-
-            logger.info(f"── IndiGo batch {batch_num} complete ──")
 
     # ── Phase 2: SriLankan — sequential (one by one) ──────────────────
     if srilankan_pnrs:

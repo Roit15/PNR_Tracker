@@ -12,4 +12,4 @@ mkdir -p "$LOG_DIR"
 # Activate venv and start Flask app
 cd "$APP_DIR"
 source "$VENV"
-python app.py >> "$LOG_DIR/app.log" 2>&1
+"$APP_DIR/venv/bin/python" app.py >> "$LOG_DIR/app.log" 2>&1

@@ -136,6 +136,9 @@ def _create_stealth_driver():
             # Run headful inside Xvfb instead of headless
             options.add_argument('--no-sandbox')
             options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-software-rasterizer')
+            options.add_argument('--disable-extensions')
+            options.add_argument('--mute-audio')
             logger.info("Cloud mode: headful (Xvfb) + no-sandbox (undetected-chromedriver)")
         else:
             logger.info("Local mode: visible popup window (undetected-chromedriver)")

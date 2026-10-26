@@ -58,7 +58,26 @@ def check_pnr_by_airline(pnr, lastname, airline='indigo', firstname=''):
         return check_pnr_status(pnr, lastname)
 
     else:
-        # Default: IndiGo
-        from scraper import check_pnr_status
-        logger.info(f"Routing PNR {pnr} to IndiGo scraper")
+        # Default: IndiGo — uses single-session scraper (no Akamai blocks)
+        from scraper_indigo import check_pnr_status
+        logger.info(f"Routing PNR {pnr} to IndiGo scraper (single-session)")
         return check_pnr_status(pnr, lastname)
+
+
+def check_indigo_batch(pnr_list, on_progress=None, stop_requested_fn=None):
+    """
+    Check multiple IndiGo PNRs in a SINGLE browser session.
+    Only loads the page once — avoids Akamai rate-limiting entirely.
+
+    Args:
+        pnr_list: List of (pnr, last_name) tuples
+        on_progress: Optional callback fn(pnr, last_name, result, index, total)
+        stop_requested_fn: Optional fn() -> bool
+
+    Returns:
+        List of result dicts (same order as input)
+    """
+    from scraper_indigo import check_multiple_pnrs
+    logger.info(f"Batch-checking {len(pnr_list)} IndiGo PNR(s) in single session")
+    return check_multiple_pnrs(pnr_list, on_progress=on_progress, stop_requested_fn=stop_requested_fn)
+

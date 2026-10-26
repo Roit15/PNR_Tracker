@@ -1,6 +1,6 @@
 """
 Thai Airways PNR Status Scraper.
-Uses Selenium with stealth mode to check flight status on thaiairways.com
+Uses Playwright with real Chrome to check flight status on thaiairways.com
 
 Key design:
   - Thai Airways My Trips page: https://www.thaiairways.com/en-lk/book/my-trips/
@@ -8,7 +8,7 @@ Key design:
   - Submit button text: "Manage Booking"
   - Cookie consent via OneTrust (#onetrust-accept-btn-handler)
   - Flight numbers: TG XXX pattern
-  - Uses the shared stealth driver from scraper.py
+  - Uses Playwright with real Chrome for stealth
   - Retries up to 3 times on failure
 """
 
@@ -18,13 +18,7 @@ import logging
 import re
 from datetime import datetime
 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-
-# Import the stealth driver creator from the main scraper
-from scraper import _create_stealth_driver
+from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 logger = logging.getLogger(__name__)
 
@@ -33,239 +27,254 @@ MAX_RETRIES = 3
 
 
 def _try_check_pnr(pnr, lastname, attempt=1):
-    """Single attempt to check Thai Airways PNR. Returns result dict or raises."""
-    driver = _create_stealth_driver()
-    try:
-        logger.info(f"[Thai Airways Attempt {attempt}/{MAX_RETRIES}] Checking PNR: {pnr}")
-
-        driver.get(THAIAIRWAYS_URL)
-        wait = WebDriverWait(driver, 40)
-
-        # Wait for the React SPA to load
-        time.sleep(10)
-
-        # Dismiss cookie consent — Thai Airways uses OneTrust
-        try:
-            cookie_btn = driver.find_element(By.ID, 'onetrust-accept-btn-handler')
-            if cookie_btn.is_displayed():
-                cookie_btn.click()
-                logger.info("Dismissed OneTrust cookie consent")
-                time.sleep(1)
-        except (NoSuchElementException, Exception):
-            logger.debug("No cookie consent banner found")
-
-        # Find form inputs — Thai Airways uses id="Booking Ref. / Ticket No." and id="Last Name"
-        pnr_input = None
-        lname_input = None
-
-        # Strategy 1: Find by known IDs
-        try:
-            pnr_input = driver.find_element(By.ID, 'Booking Ref. / Ticket No.')
-            logger.info("Found PNR input by ID")
-        except NoSuchElementException:
-            pass
+    """Single attempt to check Thai Airways PNR using Playwright with real Chrome."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            channel="chrome",
+            headless=False,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-first-run",
+                "--no-default-browser-check",
+            ]
+        )
+        context = browser.new_context(
+            viewport={"width": 1280, "height": 900},
+        )
+        page = context.new_page()
 
         try:
-            lname_input = driver.find_element(By.ID, 'Last Name')
-            logger.info("Found Last Name input by ID")
-        except NoSuchElementException:
-            pass
+            logger.info(f"[Thai Airways Attempt {attempt}/{MAX_RETRIES}] Checking PNR: {pnr}")
 
-        # Strategy 2: Find by placeholder
-        if not pnr_input:
+            # Navigate to the My Trips page
+            page.goto(THAIAIRWAYS_URL, wait_until="domcontentloaded", timeout=40000)
+            time.sleep(8)
+
+            # Dismiss cookie consent — Thai Airways uses OneTrust
             try:
-                pnr_input = driver.find_element(By.CSS_SELECTOR, 'input[placeholder*="Booking"]')
-                logger.info("Found PNR input by placeholder")
-            except NoSuchElementException:
-                pass
-
-        if not lname_input:
-            try:
-                lname_input = driver.find_element(By.CSS_SELECTOR, 'input[placeholder*="Last Name"]')
-                logger.info("Found Last Name input by placeholder")
-            except NoSuchElementException:
-                pass
-
-        # Strategy 3: Find by aria-label
-        if not pnr_input:
-            try:
-                pnr_input = driver.find_element(By.CSS_SELECTOR, 'input[aria-label*="Booking"]')
-                logger.info("Found PNR input by aria-label")
-            except NoSuchElementException:
-                pass
-
-        if not lname_input:
-            try:
-                lname_input = driver.find_element(By.CSS_SELECTOR, 'input[aria-label*="Last Name"]')
-                logger.info("Found Last Name input by aria-label")
-            except NoSuchElementException:
-                pass
-
-        # Strategy 4: Fallback to first two visible text inputs
-        if not pnr_input:
-            inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='text'], input:not([type])")
-            visible_inputs = [i for i in inputs if i.is_displayed()]
-            if len(visible_inputs) >= 2:
-                pnr_input = visible_inputs[0]
-                lname_input = visible_inputs[1]
-                logger.info("Found inputs via fallback (first two visible)")
-            elif len(visible_inputs) >= 1:
-                pnr_input = visible_inputs[0]
-                logger.info("Found PNR input via fallback (first visible)")
-
-        if not pnr_input:
-            raise Exception("Could not find booking reference input on Thai Airways page")
-
-        # Fill booking reference
-        pnr_input.clear()
-        pnr_input.send_keys(pnr)
-        time.sleep(0.5)
-
-        # Fill last name
-        if lname_input:
-            lname_input.clear()
-            lname_input.send_keys(lastname)
-            time.sleep(0.5)
-
-        # Find and click "Manage Booking" button
-        submit_btn = None
-        try:
-            buttons = driver.find_elements(By.TAG_NAME, 'button')
-            for btn in buttons:
-                btn_text = (btn.text or '').strip().lower()
-                if any(kw in btn_text for kw in ['manage booking', 'retrieve', 'search',
-                                                   'find booking', 'submit', 'continue']):
-                    if btn.is_displayed():
-                        submit_btn = btn
-                        logger.info(f"Found submit button: '{btn.text}'")
-                        break
-        except Exception:
-            pass
-
-        if not submit_btn:
-            try:
-                submit_btn = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-                logger.info("Found submit button by type=submit")
+                cookie_btn = page.locator('#onetrust-accept-btn-handler')
+                if cookie_btn.is_visible(timeout=3000):
+                    cookie_btn.click()
+                    logger.info("Dismissed OneTrust cookie consent")
+                    time.sleep(1)
             except Exception:
-                pass
+                logger.debug("No cookie consent banner found")
 
-        if submit_btn:
-            driver.execute_script("arguments[0].scrollIntoView(true);", submit_btn)
-            time.sleep(0.5)
-            driver.execute_script("arguments[0].click();", submit_btn)
-            logger.info("Clicked submit button")
-        else:
-            # Try pressing Enter
-            from selenium.webdriver.common.keys import Keys
-            (lname_input or pnr_input).send_keys(Keys.RETURN)
-            logger.info("Pressed Enter as fallback submit")
-
-        # Wait for results — Thai Airways SPA loads booking details dynamically
-        # The SPA navigates client-side, so we need to wait for the new route to render
-        logger.info("Waiting for Thai Airways booking results to load...")
-        time.sleep(8)  # Initial wait for SPA route change
-
-        flight_data_keywords = ['booking confirmed', 'booking reference', 'trip itinerary',
-                                'departure flight', 'return flight', 'economy', 'business',
-                                'e-ticket', 'baggage allowance', 'terminal',
-                                'not found', 'invalid booking', 'sorry', 'unable',
-                                'cancelled', 'manage my booking']
-        start_time = time.time()
-        page_text = ""
-        prev_len = 0
-        stable_count = 0
-        while time.time() - start_time < 45:
-            try:
-                page_text = driver.find_element(By.TAG_NAME, 'body').text
-                text_lower = page_text.lower()
-
-                # Check for real content keywords
-                has_flight_data = any(kw.lower() in text_lower for kw in flight_data_keywords)
-                # Check for airport codes (e.g., BKK, HKG, MAA) with time nearby
-                has_airport_codes = bool(re.findall(r'[A-Z]{3}\s+\d{2}:\d{2}', page_text))
-                # Check for time patterns (e.g., 19:05)
-                has_times = bool(re.findall(r'\d{2}:\d{2}', page_text))
-
-                if (has_flight_data and len(page_text) > 800):
-                    time.sleep(3)
-                    page_text = driver.find_element(By.TAG_NAME, 'body').text
-                    logger.info(f"Got flight data after {time.time() - start_time:.0f}s ({len(page_text)} chars)")
-                    break
-
-                # Also check for error/not-found states
-                if any(kw in text_lower for kw in ['not found', 'invalid', 'sorry', 'unable',
-                                                     'error', 'no record', 'does not match']):
-                    if len(page_text) > 200:
-                        time.sleep(2)
-                        page_text = driver.find_element(By.TAG_NAME, 'body').text
-                        logger.info(f"Got error/not-found result after {time.time() - start_time:.0f}s")
-                        break
-
-                # Check if content has stabilized
-                if len(page_text) == prev_len and len(page_text) > 800:
-                    stable_count += 1
-                    if stable_count >= 4:
-                        logger.info(f"Page content stabilized after {time.time() - start_time:.0f}s ({len(page_text)} chars)")
-                        break
-                else:
-                    stable_count = 0
-                prev_len = len(page_text)
-
-            except Exception:
-                pass
+            # Remove any overlays via JS
+            page.evaluate("""
+                document.querySelectorAll(
+                    '[class*="consent"], [class*="cookie"], [class*="privacy"]'
+                ).forEach(el => el.remove());
+                document.querySelectorAll('.modal-backdrop, .overlay').forEach(el => el.remove());
+                document.body.style.overflow = 'auto';
+            """)
             time.sleep(1)
 
-        # Save screenshot
-        screenshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'screenshots')
-        os.makedirs(screenshots_dir, exist_ok=True)
-        driver.save_screenshot(os.path.join(screenshots_dir, f'TG_{pnr}_status.png'))
+            # Find PNR input — try multiple strategies
+            pnr_input = None
+            lname_input = None
 
-        # Save raw text for debugging
-        raw_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'TG_{pnr}_raw.txt')
-        with open(raw_path, 'w') as f:
-            f.write(page_text)
+            # Strategy 1: By known IDs
+            for selector in [
+                '#Booking\\ Ref\\.\\ \\/\\ Ticket\\ No\\.',
+                'input[id="Booking Ref. / Ticket No."]',
+                'input[placeholder*="Booking"]',
+                'input[aria-label*="Booking"]',
+                'input[name*="booking"]',
+                'input[name*="pnr"]',
+            ]:
+                try:
+                    loc = page.locator(selector)
+                    if loc.count() > 0 and loc.first.is_visible():
+                        pnr_input = loc.first
+                        logger.info(f"Found PNR input via: {selector}")
+                        break
+                except Exception:
+                    continue
 
-        result = {'status': 'Error', 'detail': '', 'raw_text': page_text}
-        text_lower = page_text.lower()
+            # Strategy 2: By Last Name field
+            for selector in [
+                '#Last\\ Name',
+                'input[id="Last Name"]',
+                'input[placeholder*="Last Name"]',
+                'input[aria-label*="Last Name"]',
+                'input[name*="lastName"]',
+                'input[name*="last"]',
+            ]:
+                try:
+                    loc = page.locator(selector)
+                    if loc.count() > 0 and loc.first.is_visible():
+                        lname_input = loc.first
+                        logger.info(f"Found Last Name input via: {selector}")
+                        break
+                except Exception:
+                    continue
 
-        # Status detection
-        if any(kw in text_lower for kw in ['not found', 'invalid', 'does not match',
-                                            'cannot be found', 'no booking', 'unable to retrieve',
-                                            'sorry', 'no record', 'no result']):
-            result['status'] = 'Not Found'
-            result['detail'] = 'PNR not found or invalid on Thai Airways.'
+            # Strategy 3: Fallback to first two visible text inputs
+            if not pnr_input:
+                visible_inputs = page.locator("input[type='text']:visible, input:not([type]):visible")
+                count = visible_inputs.count()
+                if count >= 2:
+                    pnr_input = visible_inputs.nth(0)
+                    lname_input = visible_inputs.nth(1)
+                    logger.info("Found inputs via fallback (first two visible)")
+                elif count >= 1:
+                    pnr_input = visible_inputs.nth(0)
+                    logger.info("Found PNR input via fallback (first visible)")
 
-        elif 'cancelled' in text_lower:
-            result['status'] = 'Cancelled'
-            result['detail'] = 'Booking appears to be cancelled.'
+            if not pnr_input:
+                # Take a screenshot for debugging before raising
+                screenshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'screenshots')
+                os.makedirs(screenshots_dir, exist_ok=True)
+                page.screenshot(path=os.path.join(screenshots_dir, f'TG_{pnr}_noinput.png'))
+                page_text = page.inner_text("body")
+                raw_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'TG_{pnr}_raw.txt')
+                with open(raw_path, 'w') as f:
+                    f.write(page_text)
+                raise Exception("Could not find booking reference input on Thai Airways page")
 
-        elif any(kw in text_lower for kw in ['booking confirmed', 'trip itinerary',
-                                              'manage my booking', 'your booking',
-                                              'booking details', 'booking reference',
-                                              'passenger']):
-            result['status'] = 'Confirmed'
-            result['detail'] = _extract_booking_detail(page_text)
+            # Fill booking reference via keyboard (more natural than programmatic fill)
+            pnr_input.click()
+            time.sleep(0.3)
+            page.keyboard.type(pnr, delay=50)
+            time.sleep(0.5)
 
-        elif any(kw in text_lower for kw in ['completed', 'flown', 'past trip']):
-            result['status'] = 'Completed'
-            result['detail'] = 'Flight has been completed.'
+            # Fill last name
+            if lname_input:
+                lname_input.click()
+                time.sleep(0.3)
+                page.keyboard.type(lastname, delay=50)
+                time.sleep(0.5)
 
-        elif 'check-in' in text_lower or 'checkin' in text_lower:
-            result['status'] = 'Check-in Open'
-            result['detail'] = _extract_booking_detail(page_text)
+            # Find and click submit button
+            submit_clicked = False
+            for btn_text in ['Manage Booking', 'Retrieve', 'Search', 'Find Booking', 'Submit', 'Continue']:
+                try:
+                    btn = page.locator(f"button:has-text('{btn_text}'):visible")
+                    if btn.count() > 0:
+                        btn.first.click(force=True)
+                        logger.info(f"Clicked submit button: '{btn_text}'")
+                        submit_clicked = True
+                        break
+                except Exception:
+                    continue
 
-        else:
-            result['status'] = 'Checked'
-            result['detail'] = page_text[:500] if page_text else 'Could not parse status'
+            if not submit_clicked:
+                try:
+                    btn = page.locator("button[type='submit']:visible")
+                    if btn.count() > 0:
+                        btn.first.click(force=True)
+                        logger.info("Clicked submit button by type=submit")
+                        submit_clicked = True
+                except Exception:
+                    pass
 
-        if result['status'] not in ('Error', 'Not Found'):
-            result['flight_info'] = _extract_flight_info(page_text, lastname)
+            if not submit_clicked:
+                # Fallback: press Enter
+                page.keyboard.press("Enter")
+                logger.info("Pressed Enter as fallback submit")
 
-        return result
+            # Wait for results — Thai Airways SPA loads dynamically
+            logger.info("Waiting for Thai Airways booking results to load...")
+            time.sleep(8)
 
-    finally:
-        from scraper import _kill_driver
-        _kill_driver(driver)
+            flight_data_keywords = ['booking confirmed', 'booking reference', 'trip itinerary',
+                                    'departure flight', 'return flight', 'economy', 'business',
+                                    'e-ticket', 'baggage allowance', 'terminal',
+                                    'not found', 'invalid booking', 'sorry', 'unable',
+                                    'cancelled', 'manage my booking']
+            start_time = time.time()
+            page_text = ""
+            prev_len = 0
+            stable_count = 0
+            while time.time() - start_time < 45:
+                try:
+                    page_text = page.inner_text("body")
+                    text_lower = page_text.lower()
+
+                    has_flight_data = any(kw.lower() in text_lower for kw in flight_data_keywords)
+
+                    if has_flight_data and len(page_text) > 800:
+                        time.sleep(3)
+                        page_text = page.inner_text("body")
+                        logger.info(f"Got flight data after {time.time() - start_time:.0f}s ({len(page_text)} chars)")
+                        break
+
+                    if any(kw in text_lower for kw in ['not found', 'invalid', 'sorry', 'unable',
+                                                         'error', 'no record', 'does not match']):
+                        if len(page_text) > 200:
+                            time.sleep(2)
+                            page_text = page.inner_text("body")
+                            logger.info(f"Got error/not-found result after {time.time() - start_time:.0f}s")
+                            break
+
+                    if len(page_text) == prev_len and len(page_text) > 800:
+                        stable_count += 1
+                        if stable_count >= 4:
+                            logger.info(f"Page content stabilized after {time.time() - start_time:.0f}s ({len(page_text)} chars)")
+                            break
+                    else:
+                        stable_count = 0
+                    prev_len = len(page_text)
+
+                except Exception:
+                    pass
+                time.sleep(1)
+
+            # Save screenshot
+            screenshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'screenshots')
+            os.makedirs(screenshots_dir, exist_ok=True)
+            page.screenshot(path=os.path.join(screenshots_dir, f'TG_{pnr}_status.png'))
+
+            # Save raw text for debugging
+            raw_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'TG_{pnr}_raw.txt')
+            with open(raw_path, 'w') as f:
+                f.write(page_text)
+
+            result = {'status': 'Error', 'detail': '', 'raw_text': page_text}
+            text_lower = page_text.lower()
+
+            # Status detection
+            if any(kw in text_lower for kw in ['not found', 'invalid', 'does not match',
+                                                'cannot be found', 'no booking', 'unable to retrieve',
+                                                'sorry', 'no record', 'no result']):
+                result['status'] = 'Not Found'
+                result['detail'] = 'PNR not found or invalid on Thai Airways.'
+
+            elif 'cancelled' in text_lower:
+                result['status'] = 'Cancelled'
+                result['detail'] = 'Booking appears to be cancelled.'
+
+            elif any(kw in text_lower for kw in ['booking confirmed', 'trip itinerary',
+                                                  'manage my booking', 'your booking',
+                                                  'booking details', 'booking reference',
+                                                  'passenger']):
+                result['status'] = 'Confirmed'
+                result['detail'] = _extract_booking_detail(page_text)
+
+            elif any(kw in text_lower for kw in ['completed', 'flown', 'past trip']):
+                result['status'] = 'Completed'
+                result['detail'] = 'Flight has been completed.'
+
+            elif 'check-in' in text_lower or 'checkin' in text_lower:
+                result['status'] = 'Check-in Open'
+                result['detail'] = _extract_booking_detail(page_text)
+
+            elif any(kw in text_lower for kw in ['maintenance', 'under maintenance', 'temporarily unavailable']):
+                result['status'] = 'Error'
+                result['detail'] = 'Thai Airways website is under maintenance.'
+
+            else:
+                result['status'] = 'Checked'
+                result['detail'] = page_text[:500] if page_text else 'Could not parse status'
+
+            if result['status'] not in ('Error', 'Not Found'):
+                result['flight_info'] = _extract_flight_info(page_text, lastname)
+
+            return result
+
+        finally:
+            browser.close()
 
 
 def _extract_booking_detail(text):

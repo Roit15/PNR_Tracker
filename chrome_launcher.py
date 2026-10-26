@@ -42,7 +42,10 @@ def ensure_chrome_running(port=9224, profile_dir="/tmp/pnr-chrome-profile"):
         "--no-default-browser-check",
         "--disable-sync",
         "--disable-gpu",
-        "--disable-dev-shm-usage"
+        "--disable-dev-shm-usage",
+        "--disable-software-rasterizer",
+        "--disable-extensions",
+        "--mute-audio"
     ]
     
     if os.getenv('RENDER') or os.getenv('DISPLAY') == ':99':

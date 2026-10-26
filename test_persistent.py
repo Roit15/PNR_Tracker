@@ -1,19 +1,37 @@
-from playwright.sync_api import sync_playwright
 import time
+from scraper import _create_stealth_driver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
-pnr = "7CPJL4"
-lastname = "GARG"
-with sync_playwright() as pw:
-    context = pw.chromium.launch_persistent_context(
-        user_data_dir="/tmp/pnr-chrome-profile-pw",
-        channel="chrome",
-        headless=False,
-        ignore_default_args=["--enable-automation"],
-        args=["--no-first-run", "--no-default-browser-check"]
-    )
-    page = context.new_page()
-    page.goto("https://www.srilankan.com/en_uk/ManageYourBooking")
-    print(page.title())
-    time.sleep(2)
-    # just see if it loads or gets blocked
-    context.close()
+driver = _create_stealth_driver()
+try:
+    print("Fetching page...")
+    driver.get("https://www.goindigo.in/account/my-bookings.html")
+    time.sleep(10)
+    
+    wait = WebDriverWait(driver, 40)
+    print("Waiting for PNR input...")
+    pnr_input = wait.until(EC.visibility_of_element_located((By.NAME, 'pnr-booking-ref')))
+    pnr_input.click()
+    pnr_input.send_keys("R4M6Z9")
+    time.sleep(1)
+    
+    email_input = driver.find_element(By.NAME, 'email-last-name')
+    email_input.click()
+    email_input.send_keys("JANGRA")
+    time.sleep(1)
+    print("Submitting...")
+    email_input.send_keys(Keys.RETURN)
+    
+    print("Waiting 15 seconds for itinerary to load...")
+    time.sleep(15)
+    
+    text = driver.find_element(By.TAG_NAME, 'body').text
+    print("SUCCESS! Dumped text length:", len(text))
+    with open("persistent_dump.txt", "w") as f:
+        f.write(text)
+        
+finally:
+    driver.quit()
