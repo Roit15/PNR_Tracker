@@ -8,17 +8,22 @@ This means only 1 hit to Akamai's WAF regardless of how many PNRs we check.
 The actual API call goes to api-prod-itinerary-skyplus6e.goindigo.in
 (a different subdomain with no Akamai rate-limiting).
 """
+import os
 import json
 import logging
 import time
 import re
 import random
 from typing import Dict, Any, List, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 logger = logging.getLogger(__name__)
 
 MYBOOKINGS_URL = "https://www.goindigo.in/account/my-bookings.html"
+
+# Default worker concurrency (set to 10 for IndiGo)
+DEFAULT_INDIGO_WORKERS = int(os.getenv('INDIGO_MAX_WORKERS', '10'))
 
 # How long to wait between consecutive PNR checks (in one session)
 INTER_CHECK_DELAY_MIN = 3
@@ -29,30 +34,33 @@ def check_pnr_status(pnr: str, last_name: str) -> Dict[str, Any]:
     """
     Check a single IndiGo PNR. For bulk checks, use check_multiple_pnrs() instead.
     """
-    results = check_multiple_pnrs([(pnr, last_name)])
+    results = check_multiple_pnrs([(pnr, last_name)], max_workers=1)
     return results[0] if results else {"status": "Error", "detail": "No result returned"}
 
 
-def check_multiple_pnrs(pnr_list: List[Tuple[str, str]], on_progress=None, stop_requested_fn=None) -> List[Dict[str, Any]]:
+def _check_pnrs_single_session(
+    indexed_pnrs: List[Tuple[int, Tuple[str, str]]],
+    on_progress=None,
+    stop_requested_fn=None,
+    worker_id: int = 0,
+    initial_delay: float = 0.0,
+    total_count: int = 0
+) -> List[Tuple[int, Dict[str, Any]]]:
     """
-    Check multiple IndiGo PNRs in a SINGLE browser session.
-    
-    Opens ONE Chrome window, loads the IndiGo page ONCE, then checks
-    each PNR by clearing/refilling the form. Only 1 page load = 1 Akamai hit.
-    
-    Args:
-        pnr_list: List of (pnr, last_name) tuples
-        on_progress: Optional callback fn(pnr, last_name, result, index, total)
-        stop_requested_fn: Optional fn() -> bool to check if stop was requested
-    
-    Returns:
-        List of result dicts, one per PNR (same order as input)
+    Check a subset of PNRs within a single browser session.
+    Loads the IndiGo page once and checks assigned PNRs by in-place form clearing/refilling.
     """
-    if not pnr_list:
+    if not indexed_pnrs:
         return []
-    
-    results = []
-    
+
+    if initial_delay > 0:
+        time.sleep(initial_delay)
+
+    if stop_requested_fn and stop_requested_fn():
+        return [(idx, {"status": "Error", "detail": "Check stopped by user"}) for idx, _ in indexed_pnrs]
+
+    worker_results = []
+
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -71,80 +79,163 @@ def check_multiple_pnrs(pnr_list: List[Tuple[str, str]], on_progress=None, stop_
 
             try:
                 # ═══ PHASE 1: Load page ONCE ═══════════════════════════
-                logger.info(f"Loading IndiGo page (single session for {len(pnr_list)} PNR(s))...")
+                logger.info(f"[Worker {worker_id}] Loading IndiGo page ({len(indexed_pnrs)} assigned PNR(s))...")
                 page.goto(MYBOOKINGS_URL, wait_until="domcontentloaded", timeout=30000)
-                time.sleep(random.uniform(5, 8))
+                time.sleep(random.uniform(4, 7))
 
                 # Check for Akamai block on initial load
                 page_text = page.inner_text("body")
                 if _is_akamai_blocked(page_text):
-                    logger.error("Akamai blocked on initial page load!")
-                    return [{"status": "Error", "detail": "Akamai blocked initial page load"} for _ in pnr_list]
+                    logger.error(f"[Worker {worker_id}] Akamai blocked on initial page load!")
+                    return [(orig_idx, {"status": "Error", "detail": "Akamai blocked initial page load"}) for orig_idx, _ in indexed_pnrs]
 
                 # Remove cookie consent overlay
                 _dismiss_overlays(page)
                 time.sleep(random.uniform(0.8, 1.5))
 
                 # ═══ PHASE 2: Check each PNR using form clear+refill ═══
-                for i, (pnr, last_name) in enumerate(pnr_list):
+                for i, (orig_idx, (pnr, last_name)) in enumerate(indexed_pnrs):
                     if stop_requested_fn and stop_requested_fn():
-                        logger.info("Stop requested, halting IndiGo check.")
+                        logger.info(f"[Worker {worker_id}] Stop requested, halting.")
                         break
 
                     pnr = pnr.strip().upper()
                     last_name = last_name.strip()
-                    
-                    logger.info(f"  [{i+1}/{len(pnr_list)}] Checking PNR={pnr}, LastName={last_name}")
-                    
+
+                    logger.info(f"[Worker {worker_id}] [{i+1}/{len(indexed_pnrs)}] Checking PNR={pnr}, LastName={last_name}")
+
                     try:
                         if i == 0:
-                            # First PNR: just fill the empty form
+                            # First PNR: fill the empty form
                             result = _fill_and_submit(page, pnr, last_name)
                         else:
                             # Subsequent PNRs: navigate back and refill
                             result = _check_next_pnr(page, pnr, last_name)
-                        
-                        results.append(result)
-                        logger.info(f"  [{i+1}/{len(pnr_list)}] PNR={pnr}: {result.get('status', 'Unknown')}")
+
+                        worker_results.append((orig_idx, result))
+                        logger.info(f"[Worker {worker_id}] [{i+1}/{len(indexed_pnrs)}] PNR={pnr}: {result.get('status', 'Unknown')}")
 
                         if on_progress:
                             try:
-                                on_progress(pnr, last_name, result, i, len(pnr_list))
+                                on_progress(pnr, last_name, result, orig_idx, total_count)
                             except Exception as pe:
-                                logger.warning(f"on_progress callback error: {pe}")
-                        
+                                logger.warning(f"[Worker {worker_id}] on_progress callback error: {pe}")
+
                     except Exception as e:
-                        logger.error(f"  Error checking PNR {pnr}: {e}")
+                        logger.error(f"[Worker {worker_id}] Error checking PNR {pnr}: {e}")
                         err_res = {
                             "status": "Error",
                             "detail": f"Browser error: {str(e)}",
                             "raw_text": ""
                         }
-                        results.append(err_res)
+                        worker_results.append((orig_idx, err_res))
                         if on_progress:
                             try:
-                                on_progress(pnr, last_name, err_res, i, len(pnr_list))
+                                on_progress(pnr, last_name, err_res, orig_idx, total_count)
                             except Exception:
                                 pass
 
-                    # Random delay between checks (only if more PNRs to go)
-                    if i < len(pnr_list) - 1:
+                    # Random delay between checks (only if more PNRs to go in this worker)
+                    if i < len(indexed_pnrs) - 1:
                         if stop_requested_fn and stop_requested_fn():
                             break
                         delay = random.uniform(INTER_CHECK_DELAY_MIN, INTER_CHECK_DELAY_MAX)
-                        logger.info(f"  Waiting {delay:.1f}s before next PNR...")
+                        logger.info(f"[Worker {worker_id}] Waiting {delay:.1f}s before next PNR...")
                         time.sleep(delay)
 
             finally:
                 browser.close()
 
     except Exception as e:
-        logger.error(f"Browser session failed: {e}")
-        # Fill remaining results with errors
-        while len(results) < len(pnr_list):
-            results.append({"status": "Error", "detail": f"Session failed: {str(e)}"})
+        logger.error(f"[Worker {worker_id}] Session failed: {e}")
+        processed_indices = {idx for idx, _ in worker_results}
+        for orig_idx, _ in indexed_pnrs:
+            if orig_idx not in processed_indices:
+                worker_results.append((orig_idx, {"status": "Error", "detail": f"Session failed: {str(e)}"}))
 
-    return results
+    return worker_results
+
+
+def check_multiple_pnrs(
+    pnr_list: List[Tuple[str, str]],
+    on_progress=None,
+    stop_requested_fn=None,
+    max_workers: int = None
+) -> List[Dict[str, Any]]:
+    """
+    Check multiple IndiGo PNRs using concurrent browser workers (default: 10 workers).
+    Each worker loads the page once and checks its assigned subset of PNRs via in-place form refilling.
+
+    Args:
+        pnr_list: List of (pnr, last_name) tuples
+        on_progress: Optional callback fn(pnr, last_name, result, index, total)
+        stop_requested_fn: Optional fn() -> bool to check if stop was requested
+        max_workers: Maximum parallel browser workers (defaults to INDIGO_MAX_WORKERS or 10)
+
+    Returns:
+        List of result dicts, one per PNR in the same order as input
+    """
+    if not pnr_list:
+        return []
+
+    if max_workers is None:
+        max_workers = DEFAULT_INDIGO_WORKERS
+
+    total_count = len(pnr_list)
+    num_workers = max(1, min(max_workers, total_count))
+
+    if num_workers == 1:
+        indexed = list(enumerate(pnr_list))
+        results_tuples = _check_pnrs_single_session(
+            indexed,
+            on_progress=on_progress,
+            stop_requested_fn=stop_requested_fn,
+            worker_id=0,
+            initial_delay=0.0,
+            total_count=total_count
+        )
+        res_map = dict(results_tuples)
+        return [res_map.get(i, {"status": "Error", "detail": "No result returned"}) for i in range(total_count)]
+
+    # Partition PNRs across workers (round-robin distribution)
+    chunks = [[] for _ in range(num_workers)]
+    for orig_idx, item in enumerate(pnr_list):
+        chunks[orig_idx % num_workers].append((orig_idx, item))
+    chunks = [c for c in chunks if c]
+    actual_workers = len(chunks)
+
+    logger.info(f"Checking {total_count} IndiGo PNR(s) using {actual_workers} concurrent worker(s) (max_workers={max_workers})")
+
+    results_map = {}
+    with ThreadPoolExecutor(max_workers=actual_workers) as executor:
+        futures = {}
+        for w_id, chunk in enumerate(chunks):
+            # Stagger startup by 1.2s per worker to prevent burst traffic on initial page load
+            delay = w_id * 1.2
+            future = executor.submit(
+                _check_pnrs_single_session,
+                chunk,
+                on_progress=on_progress,
+                stop_requested_fn=stop_requested_fn,
+                worker_id=w_id,
+                initial_delay=delay,
+                total_count=total_count
+            )
+            futures[future] = (w_id, chunk)
+
+        for future in as_completed(futures):
+            w_id, chunk = futures[future]
+            try:
+                worker_tuples = future.result()
+                for orig_idx, r in worker_tuples:
+                    results_map[orig_idx] = r
+            except Exception as e:
+                logger.error(f"[Worker {w_id}] Session failed: {e}")
+                for orig_idx, (pnr, _) in chunk:
+                    if orig_idx not in results_map:
+                        results_map[orig_idx] = {"status": "Error", "detail": f"Worker error: {str(e)}"}
+
+    return [results_map.get(i, {"status": "Error", "detail": "No result returned"}) for i in range(total_count)]
 
 
 def _dismiss_overlays(page):

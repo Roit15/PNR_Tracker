@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 # Flask app
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'pnr-tracker-secret-key-change-me')
+INDIGO_MAX_WORKERS = int(os.getenv('INDIGO_MAX_WORKERS', '10'))
 
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -530,38 +531,41 @@ def start_background_check(bookings_to_check):
             srilankan_pnrs = {k: v for k, v in grouped.items() if k[1] == 'srilankan'}
             other_pnrs = {k: v for k, v in grouped.items() if k[1] not in ('indigo', 'srilankan')}
 
+            db_lock = threading.Lock()
+
             def process_status_result(pnr, rows, status_result):
                 if check_state['stop_requested']:
                     return
                 
-                segments = status_result.get('flights') or status_result.get('flight_info', [])
-                if isinstance(segments, dict):
-                    segments = [segments]
+                with db_lock:
+                    segments = status_result.get('flights') or status_result.get('flight_info', [])
+                    if isinstance(segments, dict):
+                        segments = [segments]
 
-                pax = segments[0].get('passenger_count') if segments else None
-                update_booking_status(pnr, status_result['status'], status_result.get('detail', ''), pax)
-                for seg in segments:
-                    if seg.get('flight_date') and seg.get('route'):
-                        fetched_name = seg.get('passenger_name') or rows[0]['passenger_name']
-                        add_booking(
-                            pnr=pnr,
-                            passenger_name=fetched_name,
-                            flight_number=seg.get('flight_number', ''),
-                            route=seg.get('route', ''),
-                            flight_date=_normalize_date(seg.get('flight_date')),
-                            departure_time=seg.get('departure_time', ''),
-                            arrival_time=seg.get('arrival_time', ''),
-                            passenger_lastname=rows[0].get('passenger_lastname', ''),
-                            passenger_firstname=rows[0].get('passenger_firstname', None),
-                            airline=rows[0].get('airline', 'indigo'),
-                            passenger_count=seg.get('passenger_count', 1)
-                        )
-                logger.info(f"Checked {pnr}: {status_result['status']}")
-                check_state['last_checked_pnr'] = pnr
-                check_state['last_checked_status'] = status_result['status']
-                check_state['checked'] += 1
+                    pax = segments[0].get('passenger_count') if segments else None
+                    update_booking_status(pnr, status_result['status'], status_result.get('detail', ''), pax)
+                    for seg in segments:
+                        if seg.get('flight_date') and seg.get('route'):
+                            fetched_name = seg.get('passenger_name') or (rows[0]['passenger_name'] if rows else '')
+                            add_booking(
+                                pnr=pnr,
+                                passenger_name=fetched_name,
+                                flight_number=seg.get('flight_number', ''),
+                                route=seg.get('route', ''),
+                                flight_date=_normalize_date(seg.get('flight_date')),
+                                departure_time=seg.get('departure_time', ''),
+                                arrival_time=seg.get('arrival_time', ''),
+                                passenger_lastname=rows[0].get('passenger_lastname', '') if rows else '',
+                                passenger_firstname=rows[0].get('passenger_firstname', None) if rows else None,
+                                airline=rows[0].get('airline', 'indigo') if rows else 'indigo',
+                                passenger_count=seg.get('passenger_count', 1)
+                            )
+                    logger.info(f"Checked {pnr}: {status_result['status']}")
+                    check_state['last_checked_pnr'] = pnr
+                    check_state['last_checked_status'] = status_result['status']
+                    check_state['checked'] += 1
 
-            # Phase 1: IndiGo — SINGLE SESSION (loads page once, no Akamai blocks)
+            # Phase 1: IndiGo — Concurrent Browser Workers (default 10)
             if indigo_pnrs and not check_state['stop_requested']:
                 check_state['phase'] = 'INDIGO'
                 indigo_keys = list(indigo_pnrs.keys())
@@ -585,14 +589,16 @@ def start_background_check(bookings_to_check):
                                 key = k
                                 break
                     rows = indigo_pnrs.get(key, [])
-                    check_state['current_pnr'] = pnr
+                    with db_lock:
+                        check_state['current_pnr'] = pnr
                     process_status_result(pnr, rows, status_result)
 
-                logger.info(f"Check All: checking {len(pnr_batch_list)} IndiGo PNR(s) in single session")
+                logger.info(f"Check All: checking {len(pnr_batch_list)} IndiGo PNR(s) with {INDIGO_MAX_WORKERS} workers")
                 check_indigo_batch(
                     pnr_batch_list,
                     on_progress=_on_indigo_progress,
-                    stop_requested_fn=lambda: check_state['stop_requested']
+                    stop_requested_fn=lambda: check_state['stop_requested'],
+                    max_workers=INDIGO_MAX_WORKERS
                 )
 
             # Phase 2: SriLankan

@@ -20,8 +20,9 @@ logger = logging.getLogger(__name__)
 # Statuses that trigger an immediate urgent alert
 ALERT_STATUSES = {'Cancelled', 'Rescheduled'}
 
-# IndiGo batch size — reduced to 2 to avoid Akamai rate-limiting
-INDIGO_BATCH_SIZE = 2
+# IndiGo worker concurrency (set to 10)
+INDIGO_MAX_WORKERS = int(os.getenv('INDIGO_MAX_WORKERS', '10'))
+INDIGO_BATCH_SIZE = INDIGO_MAX_WORKERS
 INDIGO_BATCH_DELAY_SECS = 30  # cooldown between IndiGo batches
 
 
@@ -128,9 +129,9 @@ def _check_all_pnrs():
 
     all_results = []
 
-    # ── Phase 1: IndiGo — SINGLE SESSION (no Akamai blocks) ─────────
+    # ── Phase 1: IndiGo — Concurrent Workers (default 10) ─────────
     if indigo_pnrs:
-        logger.info(f"═══ Phase 1: IndiGo — {len(indigo_pnrs)} unique PNR(s) in single browser session ═══")
+        logger.info(f"═══ Phase 1: IndiGo — {len(indigo_pnrs)} unique PNR(s) with {INDIGO_MAX_WORKERS} workers ═══")
 
         # Capture old statuses
         old_statuses = {}
@@ -146,9 +147,9 @@ def _check_all_pnrs():
             lastname, firstname, _ = _resolve_passenger_info(rows[0])
             pnr_batch_list.append((pnr, lastname))
 
-        # Single browser session — loads page ONCE, checks all PNRs
+        # Concurrent browser sessions — loads page ONCE per worker, checks all PNRs
         from scraper_router import check_indigo_batch
-        batch_results = check_indigo_batch(pnr_batch_list)
+        batch_results = check_indigo_batch(pnr_batch_list, max_workers=INDIGO_MAX_WORKERS)
 
         # Map results back to booking rows
         for idx, ((pnr, airline), status_result) in enumerate(zip(indigo_keys, batch_results)):
