@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 # Statuses that trigger an immediate urgent alert
 ALERT_STATUSES = {'Cancelled', 'Rescheduled'}
 
-# IndiGo worker concurrency (set to 10)
-INDIGO_MAX_WORKERS = int(os.getenv('INDIGO_MAX_WORKERS', '10'))
+# IndiGo worker concurrency (set to 1 for single session)
+INDIGO_MAX_WORKERS = int(os.getenv('INDIGO_MAX_WORKERS', '1'))
 INDIGO_BATCH_SIZE = INDIGO_MAX_WORKERS
 INDIGO_BATCH_DELAY_SECS = 30  # cooldown between IndiGo batches
 

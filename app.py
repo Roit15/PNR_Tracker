@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 # Flask app
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'pnr-tracker-secret-key-change-me')
-INDIGO_MAX_WORKERS = int(os.getenv('INDIGO_MAX_WORKERS', '10'))
+INDIGO_MAX_WORKERS = int(os.getenv('INDIGO_MAX_WORKERS', '1'))
 
 from werkzeug.middleware.proxy_fix import ProxyFix
 

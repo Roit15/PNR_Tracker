@@ -64,16 +64,16 @@ def check_pnr_by_airline(pnr, lastname, airline='indigo', firstname=''):
         return check_pnr_status(pnr, lastname)
 
 
-def check_indigo_batch(pnr_list, on_progress=None, stop_requested_fn=None, max_workers=10):
+def check_indigo_batch(pnr_list, on_progress=None, stop_requested_fn=None, max_workers=1):
     """
-    Check multiple IndiGo PNRs using concurrent browser sessions (default: 10 workers).
-    Each worker loads the page once and checks its assigned PNRs in-place.
+    Check multiple IndiGo PNRs in a single browser session (default: 1 worker).
+    Loads the page once and checks assigned PNRs in-place.
 
     Args:
         pnr_list: List of (pnr, last_name) tuples
         on_progress: Optional callback fn(pnr, last_name, result, index, total)
         stop_requested_fn: Optional fn() -> bool
-        max_workers: Maximum parallel workers (default: 10)
+        max_workers: Maximum parallel workers (default: 1)
 
     Returns:
         List of result dicts (same order as input)

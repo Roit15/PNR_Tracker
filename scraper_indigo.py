@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 MYBOOKINGS_URL = "https://www.goindigo.in/account/my-bookings.html"
 
-# Default worker concurrency (set to 10 for IndiGo)
-DEFAULT_INDIGO_WORKERS = int(os.getenv('INDIGO_MAX_WORKERS', '10'))
+# Default worker concurrency (set to 1 for IndiGo single session)
+DEFAULT_INDIGO_WORKERS = int(os.getenv('INDIGO_MAX_WORKERS', '1'))
 
 # How long to wait between consecutive PNR checks (in one session)
 INTER_CHECK_DELAY_MIN = 3
@@ -163,14 +163,14 @@ def check_multiple_pnrs(
     max_workers: int = None
 ) -> List[Dict[str, Any]]:
     """
-    Check multiple IndiGo PNRs using concurrent browser workers (default: 10 workers).
-    Each worker loads the page once and checks its assigned subset of PNRs via in-place form refilling.
+    Check multiple IndiGo PNRs (default: 1 worker / single session).
+    Loads the page once and checks assigned subset of PNRs via in-place form refilling.
 
     Args:
         pnr_list: List of (pnr, last_name) tuples
         on_progress: Optional callback fn(pnr, last_name, result, index, total)
         stop_requested_fn: Optional fn() -> bool to check if stop was requested
-        max_workers: Maximum parallel browser workers (defaults to INDIGO_MAX_WORKERS or 10)
+        max_workers: Maximum parallel browser workers (defaults to INDIGO_MAX_WORKERS or 1)
 
     Returns:
         List of result dicts, one per PNR in the same order as input
